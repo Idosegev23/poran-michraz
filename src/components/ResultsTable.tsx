@@ -19,59 +19,61 @@ function stringify(val: unknown): string {
   return String(val);
 }
 
-function AccordionRow({ label, value }: { label: string; value: unknown }) {
-  const [open, setOpen] = useState(false);
+function DataRow({ label, value }: { label: string; value: unknown }) {
+  const [expanded, setExpanded] = useState(false);
   const displayValue = stringify(value);
   const hasContent = displayValue.length > 0;
-  const isLong = displayValue.length > 80;
+  const isLong = displayValue.length > 120;
 
+  if (!hasContent) {
+    // Empty field - simple static row, no interaction
+    return (
+      <div className="border-b border-gray-100 last:border-b-0 py-3 px-5 flex items-start gap-3 opacity-50">
+        <span className="w-2 h-2 bg-gray-200 rounded-full block mt-1.5 flex-shrink-0" />
+        <div>
+          <p className="font-medium text-gray-400 text-sm">{label}</p>
+          <p className="text-gray-300 italic text-xs mt-0.5">לא רלוונטי / לא נמצא במסמך</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLong) {
+    // Short content - show directly, no expand needed
+    return (
+      <div className="border-b border-gray-100 last:border-b-0 py-3 px-5 flex items-start gap-3">
+        <span className="w-2 h-2 bg-green-400 rounded-full block mt-1.5 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-[#0d7377] text-sm">{label}</p>
+          <p className="mt-1 text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{displayValue}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Long content - expandable
   return (
     <div className="border-b border-gray-100 last:border-b-0">
       <button
-        onClick={() => hasContent && isLong && setOpen(!open)}
-        className={`w-full flex items-start gap-3 py-4 px-5 text-right transition-colors ${
-          hasContent && isLong ? 'cursor-pointer hover:bg-[#0d7377]/[0.02]' : 'cursor-default'
-        }`}
+        onClick={() => setExpanded(!expanded)}
+        className="w-full py-3 px-5 flex items-start gap-3 text-right cursor-pointer hover:bg-[#0d7377]/[0.02] transition-colors"
       >
-        {/* Arrow */}
-        <div className="mt-1 flex-shrink-0">
-          {hasContent && isLong ? (
+        <span className="w-2 h-2 bg-green-400 rounded-full block mt-1.5 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="font-semibold text-[#0d7377] text-sm">{label}</p>
             <svg
-              className={`w-4 h-4 text-[#0d7377] transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
+              className={`w-3.5 h-3.5 text-[#0d7377]/60 transition-transform duration-300 flex-shrink-0 ${expanded ? 'rotate-180' : ''}`}
               fill="none" viewBox="0 0 24 24" stroke="currentColor"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
-          ) : (
-            <div className="w-4 h-4" />
-          )}
-        </div>
-
-        {/* Label */}
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-[#0d7377] text-sm">{label}</p>
-
-          {/* Short value or preview */}
-          {hasContent && (
-            <p className={`mt-1 text-gray-600 text-sm leading-relaxed whitespace-pre-wrap ${
-              !open && isLong ? 'line-clamp-2' : ''
-            }`}>
-              {displayValue}
-            </p>
-          )}
-
-          {!hasContent && (
-            <p className="mt-1 text-gray-300 italic text-xs">לא רלוונטי / לא נמצא במסמך</p>
-          )}
-        </div>
-
-        {/* Status indicator */}
-        <div className="mt-1 flex-shrink-0">
-          {hasContent ? (
-            <span className="w-2 h-2 bg-green-400 rounded-full block" />
-          ) : (
-            <span className="w-2 h-2 bg-gray-200 rounded-full block" />
-          )}
+          </div>
+          <p className={`mt-1 text-gray-700 text-sm leading-relaxed whitespace-pre-wrap ${
+            !expanded ? 'line-clamp-2' : ''
+          }`}>
+            {displayValue}
+          </p>
         </div>
       </button>
     </div>
@@ -151,55 +153,35 @@ export default function ResultsTable({ data }: ResultsTableProps) {
       {/* Section: General Info */}
       <AccordionSection title="מידע כללי">
         {mainFields.slice(0, 10).map(([key, label]) => (
-          <AccordionRow
-            key={key}
-            label={label}
-            value={data[key as keyof TenderAnalysis]}
-          />
+          <DataRow key={key} label={label} value={data[key as keyof TenderAnalysis]} />
         ))}
       </AccordionSection>
 
       {/* Section: Dates */}
       <AccordionSection title="מועדים רלוונטיים">
         {Object.entries(DATE_LABELS).map(([key, label]) => (
-          <AccordionRow
-            key={key}
-            label={label}
-            value={data.relevantDates?.[key as keyof typeof data.relevantDates]}
-          />
+          <DataRow key={key} label={label} value={data.relevantDates?.[key as keyof typeof data.relevantDates]} />
         ))}
       </AccordionSection>
 
       {/* Section: Team & Requirements */}
       <AccordionSection title="דרישות וצוות">
         {mainFields.slice(10, 16).map(([key, label]) => (
-          <AccordionRow
-            key={key}
-            label={label}
-            value={data[key as keyof TenderAnalysis]}
-          />
+          <DataRow key={key} label={label} value={data[key as keyof TenderAnalysis]} />
         ))}
       </AccordionSection>
 
       {/* Section: Compensation & Quality */}
       <AccordionSection title="תמורה ואיכות">
         {mainFields.slice(16, 22).map(([key, label]) => (
-          <AccordionRow
-            key={key}
-            label={label}
-            value={data[key as keyof TenderAnalysis]}
-          />
+          <DataRow key={key} label={label} value={data[key as keyof TenderAnalysis]} />
         ))}
       </AccordionSection>
 
       {/* Section: Documents & Penalties */}
       <AccordionSection title="מסמכים, פורמט וקנסות">
         {mainFields.slice(22).map(([key, label]) => (
-          <AccordionRow
-            key={key}
-            label={label}
-            value={data[key as keyof TenderAnalysis]}
-          />
+          <DataRow key={key} label={label} value={data[key as keyof TenderAnalysis]} />
         ))}
       </AccordionSection>
     </div>

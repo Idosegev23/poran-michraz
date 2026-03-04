@@ -19,6 +19,15 @@ function stringify(val: unknown): string {
   return String(val);
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/\n/g, '<br/>');
+}
+
 interface RowData {
   label: string;
   value: string;
@@ -59,68 +68,80 @@ function getAllRows(data: TenderAnalysis): RowData[] {
   return rows;
 }
 
-async function exportToPDF(data: TenderAnalysis) {
+function buildPdfHtml(data: TenderAnalysis): string {
   const rows = getAllRows(data);
+  const tableRows = rows.map((row, i) => {
+    if (row.isSection) {
+      return `<tr><td colspan="2" style="background:#0d7377;color:white;padding:8px 12px;font-weight:bold;font-size:13px;border:1px solid #095456;">${escapeHtml(row.label)}</td></tr>`;
+    }
+    const bg = i % 2 === 0 ? '#f8fafa' : '#fff';
+    const val = row.value
+      ? escapeHtml(row.value)
+      : '<span style="color:#ccc;font-style:italic;">לא רלוונטי</span>';
+    return `<tr style="background:${bg};">
+      <td style="padding:8px 12px;font-weight:600;color:#0d7377;vertical-align:top;border:1px solid #e5e7eb;width:30%;">${escapeHtml(row.label)}</td>
+      <td style="padding:8px 12px;color:#333;vertical-align:top;border:1px solid #e5e7eb;">${val}</td>
+    </tr>`;
+  }).join('');
 
-  // Build an HTML document for PDF rendering with proper Hebrew
-  const html = `
-    <div style="direction: rtl; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; padding: 30px; max-width: 800px; margin: 0 auto;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 15px; border-bottom: 3px solid #0d7377;">
-        <div>
-          <h1 style="color: #0d7377; margin: 0; font-size: 24px;">ניתוח מכרז</h1>
-          <p style="color: #666; margin: 5px 0 0 0; font-size: 13px;">${stringify(data.tenderName) || ''}</p>
-        </div>
-        <img src="/logo.png" style="height: 45px; object-fit: contain;" />
-      </div>
-      <table style="width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px;">
-        <thead>
-          <tr style="background: #0d7377;">
-            <th style="color: white; padding: 10px 12px; text-align: right; width: 30%; border: 1px solid #095456;">נושא</th>
-            <th style="color: white; padding: 10px 12px; text-align: right; border: 1px solid #095456;">פירוט</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.map((row, i) => {
-            if (row.isSection) {
-              return `<tr><td colspan="2" style="background: #0d7377; color: white; padding: 8px 12px; font-weight: bold; font-size: 13px; border: 1px solid #095456;">${row.label}</td></tr>`;
-            }
-            const bg = i % 2 === 0 ? '#f8fafa' : '#ffffff';
-            const val = row.value ? row.value.replace(/\n/g, '<br/>') : '<span style="color: #ccc;">לא רלוונטי</span>';
-            return `<tr style="background: ${bg};">
-              <td style="padding: 8px 12px; font-weight: 600; color: #0d7377; vertical-align: top; border: 1px solid #e5e7eb; width: 30%;">${row.label}</td>
-              <td style="padding: 8px 12px; color: #333; vertical-align: top; border: 1px solid #e5e7eb; white-space: pre-wrap;">${val}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-      <div style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #e5e7eb; text-align: center; color: #999; font-size: 10px;">
-        פורן שרם - ניהול פרויקטים, הנדסה, פיקוח | מופעל על ידי Claude AI
-      </div>
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="utf-8"/>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; direction: rtl; padding: 25px; color: #333; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; page-break-inside: auto; }
+    tr { page-break-inside: avoid; page-break-after: auto; }
+    @media print {
+      body { padding: 15px; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;border-bottom:3px solid #0d7377;margin-bottom:15px;">
+    <div>
+      <h1 style="color:#0d7377;font-size:22px;margin:0;">ניתוח מכרז</h1>
+      <p style="color:#666;font-size:12px;margin-top:4px;">${escapeHtml(stringify(data.tenderName).substring(0, 100))}</p>
     </div>
-  `;
+    <img src="/logo.png" style="height:40px;object-fit:contain;" crossorigin="anonymous"/>
+  </div>
+  <table>
+    <thead>
+      <tr style="background:#0d7377;">
+        <th style="color:white;padding:8px 12px;text-align:right;width:30%;border:1px solid #095456;">נושא</th>
+        <th style="color:white;padding:8px 12px;text-align:right;border:1px solid #095456;">פירוט</th>
+      </tr>
+    </thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+  <div style="margin-top:15px;padding-top:8px;border-top:1px solid #e5e7eb;text-align:center;color:#999;font-size:9px;">
+    פורן שרם - ניהול פרויקטים, הנדסה, פיקוח | מופעל על ידי Claude AI
+  </div>
+</body>
+</html>`;
+}
 
-  const container = document.createElement('div');
-  container.innerHTML = html;
-  container.style.position = 'absolute';
-  container.style.left = '-9999px';
-  container.style.top = '0';
-  document.body.appendChild(container);
+async function exportToPDF(data: TenderAnalysis) {
+  // Use print-based PDF which handles Hebrew perfectly
+  const htmlContent = buildPdfHtml(data);
 
-  const html2pdf = (await import('html2pdf.js')).default;
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert('חסום חלון קופץ. אנא אפשר popups עבור אתר זה.');
+    return;
+  }
 
-  await html2pdf()
-    .set({
-      margin: [10, 5, 15, 5],
-      filename: `ניתוח_מכרז_${stringify(data.tenderName) || 'מסמך'}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, letterRendering: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-    })
-    .from(container)
-    .save();
+  printWindow.document.write(htmlContent);
+  printWindow.document.close();
 
-  document.body.removeChild(container);
+  // Wait for images to load then print
+  printWindow.onload = () => {
+    setTimeout(() => {
+      printWindow.print();
+    }, 500);
+  };
 }
 
 async function exportToExcel(data: TenderAnalysis) {
@@ -134,32 +155,21 @@ async function exportToExcel(data: TenderAnalysis) {
   try {
     const logoResponse = await fetch('/logo.png');
     const logoBuffer = await logoResponse.arrayBuffer();
-    const logoId = workbook.addImage({
-      buffer: logoBuffer,
-      extension: 'png',
-    });
-    worksheet.addImage(logoId, {
-      tl: { col: 0, row: 0 },
-      ext: { width: 200, height: 64 },
-    });
-  } catch {
-    // continue
-  }
+    const logoId = workbook.addImage({ buffer: logoBuffer, extension: 'png' });
+    worksheet.addImage(logoId, { tl: { col: 0, row: 0 }, ext: { width: 200, height: 64 } });
+  } catch { /* continue */ }
 
   worksheet.getRow(1).height = 50;
   worksheet.getRow(2).height = 10;
 
-  // Title
   worksheet.mergeCells('A3:B3');
   const titleCell = worksheet.getCell('A3');
   titleCell.value = `ניתוח מכרז - ${stringify(data.tenderName)}`;
   titleCell.font = { size: 16, bold: true, color: { argb: 'FF0D7377' } };
   titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
   worksheet.getRow(3).height = 35;
-
   worksheet.getRow(4).height = 5;
 
-  // Header
   const headerRow = worksheet.getRow(5);
   headerRow.values = ['נושא', 'פירוט'];
   headerRow.height = 30;
@@ -181,7 +191,6 @@ async function exportToExcel(data: TenderAnalysis) {
 
   for (const rowData of rows) {
     const row = worksheet.getRow(currentRow);
-
     if (rowData.isSection) {
       row.values = [rowData.label, ''];
       row.height = 28;
@@ -189,31 +198,19 @@ async function exportToExcel(data: TenderAnalysis) {
         cell.font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D7377' } };
         cell.alignment = { horizontal: 'right', vertical: 'middle', wrapText: true };
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FF095456' } },
-          bottom: { style: 'thin', color: { argb: 'FF095456' } },
-          left: { style: 'thin', color: { argb: 'FF095456' } },
-          right: { style: 'thin', color: { argb: 'FF095456' } },
-        };
+        cell.border = { top: { style: 'thin', color: { argb: 'FF095456' } }, bottom: { style: 'thin', color: { argb: 'FF095456' } }, left: { style: 'thin', color: { argb: 'FF095456' } }, right: { style: 'thin', color: { argb: 'FF095456' } } };
       });
     } else {
       row.values = [rowData.label, rowData.value];
       row.eachCell((cell, colNumber) => {
         cell.alignment = { horizontal: 'right', vertical: 'top', wrapText: true };
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-          bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-          left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-          right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-        };
+        cell.border = { top: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } }, left: { style: 'thin', color: { argb: 'FFE5E7EB' } }, right: { style: 'thin', color: { argb: 'FFE5E7EB' } } };
         if (colNumber === 1) {
           cell.font = { bold: true, size: 10, color: { argb: 'FF0D7377' } };
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F0F0' } };
         } else {
           cell.font = { size: 10 };
-          if (isAlternate) {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F5F5' } };
-          }
+          if (isAlternate) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F5F5' } };
         }
       });
       isAlternate = !isAlternate;
@@ -225,9 +222,7 @@ async function exportToExcel(data: TenderAnalysis) {
   worksheet.getColumn(2).width = 80;
 
   const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -237,30 +232,11 @@ async function exportToExcel(data: TenderAnalysis) {
 }
 
 function shareAnalysis(data: TenderAnalysis) {
-  // Compress and encode data to URL
   const jsonStr = JSON.stringify(data);
-  const encoded = btoa(unescape(encodeURIComponent(jsonStr)));
-  const shareUrl = `${window.location.origin}/analysis/shared?d=${encoded}`;
-
-  // Try native share first, fallback to clipboard
-  if (encoded.length < 2000 && navigator.share) {
-    navigator.share({
-      title: `ניתוח מכרז - ${stringify(data.tenderName)}`,
-      url: shareUrl,
-    }).catch(() => {
-      copyToClipboard(shareUrl);
-    });
-  } else {
-    // For large data, save to localStorage and share with key
-    const key = 'analysis_' + Date.now().toString(36);
-    localStorage.setItem(key, jsonStr);
-    const shortUrl = `${window.location.origin}/analysis/shared?key=${key}`;
-    copyToClipboard(shortUrl);
-  }
-}
-
-function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text);
+  const key = 'analysis_' + Date.now().toString(36);
+  localStorage.setItem(key, jsonStr);
+  const shareUrl = `${window.location.origin}/analysis/shared?key=${key}`;
+  navigator.clipboard.writeText(shareUrl);
 }
 
 export default function ExportButtons({ data }: ExportButtonsProps) {
@@ -305,7 +281,7 @@ export default function ExportButtons({ data }: ExportButtonsProps) {
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
         </svg>
-        {copied ? 'הקישור הועתק!' : 'שתף קישור'}
+        {copied ? 'הקישור הועתק!' : 'שתף'}
       </button>
     </div>
   );
