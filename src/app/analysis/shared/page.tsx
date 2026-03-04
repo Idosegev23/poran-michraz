@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+import pako from 'pako';
 import ResultsTable from '@/components/ResultsTable';
 import ExportButtons from '@/components/ExportButtons';
 import { TenderAnalysis } from '@/lib/types';
@@ -20,7 +21,20 @@ function SharedContent() {
 
   useEffect(() => {
     try {
-      // Decode base64-encoded data from URL
+      // New compressed format (z= param)
+      const compressed = searchParams.get('z');
+      if (compressed) {
+        // Restore URL-safe base64
+        const b64 = compressed.replace(/-/g, '+').replace(/_/g, '/');
+        const binary = atob(b64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const jsonStr = new TextDecoder().decode(pako.inflate(bytes));
+        setData(JSON.parse(jsonStr));
+        return;
+      }
+
+      // Legacy uncompressed format (d= param)
       const encoded = searchParams.get('d');
       if (encoded) {
         const jsonStr = decodeURIComponent(escape(atob(encoded)));

@@ -2,6 +2,7 @@
 
 import { TenderAnalysis, FIELD_LABELS, DATE_LABELS } from '@/lib/types';
 import { useState } from 'react';
+import pako from 'pako';
 
 interface ExportButtonsProps {
   data: TenderAnalysis;
@@ -172,8 +173,11 @@ async function exportToExcel(data: TenderAnalysis) {
 
 function shareAnalysis(data: TenderAnalysis) {
   const jsonStr = JSON.stringify(data);
-  const encoded = btoa(unescape(encodeURIComponent(jsonStr)));
-  const shareUrl = `${window.location.origin}/analysis/shared?d=${encoded}`;
+  const compressed = pako.deflate(new TextEncoder().encode(jsonStr));
+  // URL-safe base64
+  const b64 = btoa(String.fromCharCode(...compressed))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const shareUrl = `${window.location.origin}/analysis/shared?z=${b64}`;
   navigator.clipboard.writeText(shareUrl);
 }
 
