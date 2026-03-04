@@ -82,15 +82,15 @@ function buildPdfHtml(data: TenderAnalysis): string {
   const tableRows = rows
     .map((row, i) => {
       if (row.isSection) {
-        return `<tr><td colspan="2" style="background:#0d7377;color:white;padding:10px 14px;font-weight:bold;font-size:13px;border:1px solid #095456;">${escapeHtml(row.label)}</td></tr>`;
+        return `<tr><td colspan="2" style="background-color:#0d7377 !important;color:#ffffff !important;padding:10px 14px;font-weight:bold;font-size:13px;border:1px solid #095456;">${escapeHtml(row.label)}</td></tr>`;
       }
-      const bg = i % 2 === 0 ? '#f8fafa' : '#ffffff';
+      const bg = i % 2 === 0 ? '#f0f7f7' : '#ffffff';
       const val = row.value
         ? escapeHtml(row.value)
-        : '<span style="color:#bbb;font-style:italic;">לא צוין במסמך</span>';
-      return `<tr style="background:${bg};">
-      <td style="padding:9px 14px;font-weight:600;color:#0d7377;vertical-align:top;border:1px solid #e5e7eb;width:28%;">${escapeHtml(row.label)}</td>
-      <td style="padding:9px 14px;color:#333;vertical-align:top;border:1px solid #e5e7eb;line-height:1.6;">${val}</td>
+        : '<span style="color:#999999;font-style:italic;">לא צוין במסמך</span>';
+      return `<tr style="background-color:${bg} !important;">
+      <td style="padding:9px 14px;font-weight:600;color:#0a5c5f;vertical-align:top;border:1px solid #d0d5dd;width:28%;background-color:#e6f0f0 !important;">${escapeHtml(row.label)}</td>
+      <td style="padding:9px 14px;color:#222222;vertical-align:top;border:1px solid #d0d5dd;line-height:1.7;">${val}</td>
     </tr>`;
     })
     .join('');
@@ -99,24 +99,26 @@ function buildPdfHtml(data: TenderAnalysis): string {
 <html dir="rtl" lang="he">
 <head>
   <meta charset="utf-8"/>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@300;400;500;600;700&display=swap');
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: 'Noto Sans Hebrew', 'Segoe UI', Tahoma, Arial, sans-serif;
       direction: rtl;
       padding: 0;
-      color: #333;
-      background: #fff;
+      color: #222222;
+      background-color: #ffffff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 11px;
+      font-size: 11.5px;
       page-break-inside: auto;
     }
     tr { page-break-inside: avoid; page-break-after: auto; }
-    td { word-wrap: break-word; }
+    td, th { word-wrap: break-word; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   </style>
 </head>
 <body>
@@ -129,9 +131,9 @@ function buildPdfHtml(data: TenderAnalysis): string {
   </div>
   <table>
     <thead>
-      <tr style="background:#0d7377;">
-        <th style="color:white;padding:10px 14px;text-align:right;width:28%;border:1px solid #095456;font-size:12px;">נושא</th>
-        <th style="color:white;padding:10px 14px;text-align:right;border:1px solid #095456;font-size:12px;">פירוט</th>
+      <tr style="background-color:#0d7377 !important;">
+        <th style="color:#ffffff !important;padding:10px 14px;text-align:right;width:28%;border:1px solid #095456;font-size:12px;">נושא</th>
+        <th style="color:#ffffff !important;padding:10px 14px;text-align:right;border:1px solid #095456;font-size:12px;">פירוט</th>
       </tr>
     </thead>
     <tbody>${tableRows}</tbody>

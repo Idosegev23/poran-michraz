@@ -172,9 +172,8 @@ async function exportToExcel(data: TenderAnalysis) {
 
 function shareAnalysis(data: TenderAnalysis) {
   const jsonStr = JSON.stringify(data);
-  const key = 'analysis_' + Date.now().toString(36);
-  localStorage.setItem(key, jsonStr);
-  const shareUrl = `${window.location.origin}/analysis/shared?key=${key}`;
+  const encoded = btoa(unescape(encodeURIComponent(jsonStr)));
+  const shareUrl = `${window.location.origin}/analysis/shared?d=${encoded}`;
   navigator.clipboard.writeText(shareUrl);
 }
 
