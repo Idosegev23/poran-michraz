@@ -6,6 +6,12 @@ import ResultsTable from '@/components/ResultsTable';
 import ExportButtons from '@/components/ExportButtons';
 import { TenderAnalysis } from '@/lib/types';
 
+function stringify(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  return String(val);
+}
+
 export default function Home() {
   const [analysisData, setAnalysisData] = useState<TenderAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -26,138 +32,123 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col">
+    <main className="min-h-screen flex flex-col relative z-10">
       {/* Header */}
-      <header className="glass sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-5">
-            <img src="/logo.png" alt="פורן שרם" className="h-11 object-contain" />
-            <div className="h-8 w-px bg-[#0d7377]/20" />
-            <div>
-              <h1 className="text-lg font-bold text-[#0d7377]">מנתח מכרזים</h1>
-              <p className="text-[11px] text-gray-400 -mt-0.5">מופעל על ידי בינה מלאכותית</p>
+      <header className="sticky top-0 z-50 backdrop-blur-xl bg-[#0B1120]/80 border-b border-white/[0.04]">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <img src="/logo.png" alt="פורן שרם" className="h-9 object-contain brightness-0 invert opacity-90" />
+            </div>
+            <div className="h-5 w-px bg-white/10" />
+            <span className="text-sm font-medium text-white/40">ניתוח מכרזים</span>
+          </div>
+          <div className="flex items-center gap-3">
+            {analysisData && (
+              <button
+                onClick={handleReset}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-400 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/20 rounded-xl transition-all duration-300"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                מכרז חדש
+              </button>
+            )}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 border border-teal-500/20">
+              <span className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-pulse" />
+              <span className="text-xs text-teal-400 font-medium">AI פעיל</span>
             </div>
           </div>
-          {analysisData && (
-            <button
-              onClick={handleReset}
-              className="px-5 py-2.5 text-sm font-medium bg-[#0d7377] hover:bg-[#095456] text-white rounded-xl transition-all duration-300 shadow-md hover:shadow-lg hover:-translate-y-0.5"
-            >
-              + ניתוח מכרז חדש
-            </button>
-          )}
         </div>
       </header>
 
-      {/* Upload Section */}
+      {/* Upload State */}
       {!analysisData && (
         <div className="flex-1 flex flex-col">
           {/* Hero */}
-          <div className="bg-gradient-animated text-white py-16 px-6 relative overflow-hidden">
-            {/* Decorative elements */}
-            <div className="absolute inset-0 overflow-hidden">
-              <div className="absolute -top-20 -right-20 w-80 h-80 bg-white/5 rounded-full blur-3xl" />
-              <div className="absolute -bottom-20 -left-20 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-white/[0.02] rounded-full" />
-            </div>
-
-            <div className="max-w-3xl mx-auto text-center relative z-10">
-              <div className="animate-fade-in-up">
-                <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-full px-4 py-1.5 mb-6 text-sm">
-                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                  מערכת AI מוכנה לניתוח
-                </div>
-                <h2 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
-                  ניתוח מכרזים אוטומטי
-                </h2>
-                <p className="text-lg text-white/80 max-w-xl mx-auto leading-relaxed">
-                  העלה מסמך מכרז והמערכת תנתח אותו מקצה לקצה,
-                  <br />
-                  תחלץ את כל המידע הרלוונטי בטבלה מסודרת
-                </p>
+          <div className="pt-20 pb-6 px-6">
+            <div className="max-w-3xl mx-auto text-center animate-fade-up">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.06] text-sm text-white/50 mb-8">
+                <span className="text-teal-400">Claude Opus 4.6</span>
+                <span className="text-white/20">|</span>
+                <span>ניתוח עומק עם חשיבה מורחבת</span>
               </div>
+              <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-5">
+                <span className="text-white">ניתוח מכרזים</span>
+                <br />
+                <span className="bg-gradient-to-l from-teal-400 to-emerald-300 bg-clip-text text-transparent">
+                  בבינה מלאכותית
+                </span>
+              </h1>
+              <p className="text-lg text-white/40 max-w-lg mx-auto leading-relaxed">
+                העלה מסמך מכרז והמערכת תנתח אותו מקצה לקצה,
+                תחלץ 27+ שדות מובנים בטבלה מסודרת
+              </p>
             </div>
           </div>
 
-          {/* Upload Area */}
-          <div className="flex-1 px-6 -mt-8 relative z-10">
-            <div className="max-w-3xl mx-auto">
-              <div className="animate-fade-in-up delay-100">
-                <FileUpload
-                  onAnalysisComplete={handleAnalysisComplete}
-                  onError={handleError}
-                />
-              </div>
+          {/* Upload */}
+          <div className="px-6 pb-8">
+            <div className="max-w-2xl mx-auto animate-fade-up delay-100">
+              <FileUpload
+                onAnalysisComplete={handleAnalysisComplete}
+                onError={handleError}
+              />
+            </div>
 
-              {/* Error */}
-              {error && (
-                <div className="mt-6 animate-slide-down bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-sm">שגיאה בעיבוד</p>
-                      <p className="text-sm text-red-600">{error}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Feature Cards */}
-              <div className="mt-12 mb-12 grid grid-cols-1 md:grid-cols-3 gap-5">
-                <div className="animate-fade-in-up delay-200 group bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-                  <div className="w-14 h-14 bg-gradient-to-br from-[#0d7377] to-[#14b8a6] rounded-2xl flex items-center justify-center mb-5 shadow-md group-hover:scale-110 transition-transform duration-300">
-                    <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            {error && (
+              <div className="mt-6 max-w-2xl mx-auto animate-fade-up glass-card p-4 border-red-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-red-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </div>
-                  <h3 className="font-bold text-gray-800 mb-2 text-base">העלאת מסמך</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">גרור ושחרר קובץ PDF או Word עם מסמכי המכרז</p>
-                </div>
-
-                <div className="animate-fade-in-up delay-300 group bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-                  <div className="w-14 h-14 bg-gradient-to-br from-[#0d7377] to-[#14b8a6] rounded-2xl flex items-center justify-center mb-5 shadow-md group-hover:scale-110 transition-transform duration-300">
-                    <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
-                  </div>
-                  <h3 className="font-bold text-gray-800 mb-2 text-base">ניתוח AI עמוק</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">בינה מלאכותית מנתחת ומחלצת 27+ שדות מהמסמך</p>
-                </div>
-
-                <div className="animate-fade-in-up delay-400 group bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-                  <div className="w-14 h-14 bg-gradient-to-br from-[#0d7377] to-[#14b8a6] rounded-2xl flex items-center justify-center mb-5 shadow-md group-hover:scale-110 transition-transform duration-300">
-                    <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                  </div>
-                  <h3 className="font-bold text-gray-800 mb-2 text-base">ייצוא מסודר</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">ייצוא PDF ו-Excel מעוצבים עם לוגו החברה</p>
+                  <p className="text-sm text-red-300">{error}</p>
                 </div>
               </div>
+            )}
+          </div>
+
+          {/* Bento Features */}
+          <div className="px-6 pb-16 mt-4">
+            <div className="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { icon: '📄', title: 'PDF & Word', desc: 'העלאת מסמכים' },
+                { icon: '🧠', title: 'ניתוח עמוק', desc: '27+ שדות' },
+                { icon: '📊', title: 'ייצוא', desc: 'PDF & Excel' },
+                { icon: '🔗', title: 'שיתוף', desc: 'קישור ישיר' },
+              ].map((item, i) => (
+                <div
+                  key={item.title}
+                  className={`animate-fade-up delay-${(i + 2) * 100} glass-card glass-card-hover p-5 text-center`}
+                >
+                  <div className="text-2xl mb-3">{item.icon}</div>
+                  <p className="text-sm font-semibold text-white/80">{item.title}</p>
+                  <p className="text-xs text-white/30 mt-1">{item.desc}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* Results Section */}
+      {/* Results State */}
       {analysisData && (
         <div className="flex-1 px-6 py-8">
-          <div className="max-w-6xl mx-auto animate-fade-in-up space-y-6">
-            {/* Success Banner */}
-            <div className="bg-gradient-to-l from-[#0d7377] to-[#14b8a6] text-white rounded-2xl p-5 shadow-lg flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="max-w-6xl mx-auto space-y-6 animate-fade-up">
+            {/* Success bar */}
+            <div className="glass-card p-5 flex items-center justify-between glow-brand">
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 bg-teal-500/15 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
                 <div>
-                  <p className="font-bold text-lg">הניתוח הושלם בהצלחה</p>
-                  <p className="text-white/70 text-sm">{analysisData.tenderName || 'מסמך מכרז'}</p>
+                  <p className="font-semibold text-white">הניתוח הושלם</p>
+                  <p className="text-sm text-white/40 mt-0.5">{stringify(analysisData.tenderName).substring(0, 70) || 'מסמך מכרז'}</p>
                 </div>
               </div>
               <ExportButtons data={analysisData} />
@@ -165,8 +156,7 @@ export default function Home() {
 
             <ResultsTable data={analysisData} />
 
-            {/* Bottom export */}
-            <div className="flex justify-center pt-4 pb-8">
+            <div className="flex justify-center pt-2 pb-8">
               <ExportButtons data={analysisData} />
             </div>
           </div>
@@ -174,10 +164,10 @@ export default function Home() {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-gray-200/60 bg-white/50 backdrop-blur-sm py-4 mt-auto">
-        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between text-xs text-gray-400">
+      <footer className="mt-auto border-t border-white/[0.04] py-5 relative z-10">
+        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between text-xs text-white/20">
           <span>פורן שרם - ניהול פרויקטים, הנדסה, פיקוח</span>
-          <span>מופעל על ידי Claude AI</span>
+          <span>Powered by Claude AI</span>
         </div>
       </footer>
     </main>

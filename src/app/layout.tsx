@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ניתוח מכרזים - פורן שרם",
-  description: "מערכת ניתוח מכרזים אוטומטית בעזרת בינה מלאכותית",
+  title: "ניתוח מכרזים AI | פורן שרם",
+  description: "מערכת ניתוח מכרזים מתקדמת בעזרת בינה מלאכותית",
 };
 
 export default function RootLayout({
@@ -13,7 +13,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="he" dir="rtl">
-      <body className="antialiased bg-gray-50 min-h-screen">
+      <head>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="antialiased bg-mesh min-h-screen relative">
         {children}
       </body>
     </html>
