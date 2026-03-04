@@ -19,15 +19,6 @@ function stringify(val: unknown): string {
   return String(val);
 }
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/\n/g, '<br/>');
-}
-
 interface RowData {
   label: string;
   value: string;
@@ -36,7 +27,6 @@ interface RowData {
 
 function getAllRows(data: TenderAnalysis): RowData[] {
   const rows: RowData[] = [];
-
   rows.push({ label: FIELD_LABELS.tenderName, value: stringify(data.tenderName), isSection: false });
 
   const mainFields = Object.entries(FIELD_LABELS).filter(([key]) => key !== 'tenderName');
@@ -68,80 +58,29 @@ function getAllRows(data: TenderAnalysis): RowData[] {
   return rows;
 }
 
-function buildPdfHtml(data: TenderAnalysis): string {
-  const rows = getAllRows(data);
-  const tableRows = rows.map((row, i) => {
-    if (row.isSection) {
-      return `<tr><td colspan="2" style="background:#0d7377;color:white;padding:8px 12px;font-weight:bold;font-size:13px;border:1px solid #095456;">${escapeHtml(row.label)}</td></tr>`;
-    }
-    const bg = i % 2 === 0 ? '#f8fafa' : '#fff';
-    const val = row.value
-      ? escapeHtml(row.value)
-      : '<span style="color:#ccc;font-style:italic;">לא רלוונטי</span>';
-    return `<tr style="background:${bg};">
-      <td style="padding:8px 12px;font-weight:600;color:#0d7377;vertical-align:top;border:1px solid #e5e7eb;width:30%;">${escapeHtml(row.label)}</td>
-      <td style="padding:8px 12px;color:#333;vertical-align:top;border:1px solid #e5e7eb;">${val}</td>
-    </tr>`;
-  }).join('');
+async function exportToPDF(data: TenderAnalysis, setGenerating: (v: boolean) => void) {
+  try {
+    setGenerating(true);
+    const res = await fetch('/api/export-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data }),
+    });
 
-  return `<!DOCTYPE html>
-<html dir="rtl" lang="he">
-<head>
-  <meta charset="utf-8"/>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; direction: rtl; padding: 25px; color: #333; }
-    table { width: 100%; border-collapse: collapse; font-size: 11px; page-break-inside: auto; }
-    tr { page-break-inside: avoid; page-break-after: auto; }
-    @media print {
-      body { padding: 15px; }
-      .no-print { display: none; }
-    }
-  </style>
-</head>
-<body>
-  <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;border-bottom:3px solid #0d7377;margin-bottom:15px;">
-    <div>
-      <h1 style="color:#0d7377;font-size:22px;margin:0;">ניתוח מכרז</h1>
-      <p style="color:#666;font-size:12px;margin-top:4px;">${escapeHtml(stringify(data.tenderName).substring(0, 100))}</p>
-    </div>
-    <img src="/logo.png" style="height:40px;object-fit:contain;" crossorigin="anonymous"/>
-  </div>
-  <table>
-    <thead>
-      <tr style="background:#0d7377;">
-        <th style="color:white;padding:8px 12px;text-align:right;width:30%;border:1px solid #095456;">נושא</th>
-        <th style="color:white;padding:8px 12px;text-align:right;border:1px solid #095456;">פירוט</th>
-      </tr>
-    </thead>
-    <tbody>${tableRows}</tbody>
-  </table>
-  <div style="margin-top:15px;padding-top:8px;border-top:1px solid #e5e7eb;text-align:center;color:#999;font-size:9px;">
-    פורן שרם - ניהול פרויקטים, הנדסה, פיקוח | מופעל על ידי Claude AI
-  </div>
-</body>
-</html>`;
-}
+    if (!res.ok) throw new Error('PDF generation failed');
 
-async function exportToPDF(data: TenderAnalysis) {
-  // Use print-based PDF which handles Hebrew perfectly
-  const htmlContent = buildPdfHtml(data);
-
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    alert('חסום חלון קופץ. אנא אפשר popups עבור אתר זה.');
-    return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ניתוח_מכרז_${stringify(data.tenderName) || 'מסמך'}.pdf`;
+    link.click();
+    URL.revokeObjectURL(url);
+  } catch {
+    alert('שגיאה ביצירת PDF. נסה שוב.');
+  } finally {
+    setGenerating(false);
   }
-
-  printWindow.document.write(htmlContent);
-  printWindow.document.close();
-
-  // Wait for images to load then print
-  printWindow.onload = () => {
-    setTimeout(() => {
-      printWindow.print();
-    }, 500);
-  };
 }
 
 async function exportToExcel(data: TenderAnalysis) {
@@ -241,6 +180,7 @@ function shareAnalysis(data: TenderAnalysis) {
 
 export default function ExportButtons({ data }: ExportButtonsProps) {
   const [copied, setCopied] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const handleShare = () => {
     shareAnalysis(data);
@@ -251,13 +191,25 @@ export default function ExportButtons({ data }: ExportButtonsProps) {
   return (
     <div className="flex gap-2 flex-wrap">
       <button
-        onClick={() => exportToPDF(data)}
-        className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-red-400/80 bg-red-500/10 hover:bg-red-500/20 border border-red-500/15 rounded-lg transition-all duration-300"
+        onClick={() => exportToPDF(data, setGeneratingPdf)}
+        disabled={generatingPdf}
+        className={`flex items-center gap-2 px-4 py-2 text-xs font-medium rounded-lg transition-all duration-300 border ${
+          generatingPdf
+            ? 'text-red-300/60 bg-red-500/5 border-red-500/10 cursor-wait'
+            : 'text-red-400/80 bg-red-500/10 hover:bg-red-500/20 border-red-500/15'
+        }`}
       >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        PDF
+        {generatingPdf ? (
+          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+        ) : (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        )}
+        {generatingPdf ? 'מייצר...' : 'PDF'}
       </button>
 
       <button
