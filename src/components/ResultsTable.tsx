@@ -325,6 +325,70 @@ function RedFlagsSection({ flags }: { flags: string }) {
   );
 }
 
+function DefinitionsSection({ definitions }: { definitions: string }) {
+  const lines = definitions.split('\n').filter(l => l.trim());
+
+  const parsed = lines.map(line => {
+    // Try "term: definition" format
+    const colonIdx = line.indexOf(':');
+    if (colonIdx > 0 && colonIdx < 60) {
+      return { term: line.substring(0, colonIdx).trim(), definition: line.substring(colonIdx + 1).trim() };
+    }
+    // Try "term - definition" format
+    const dashMatch = line.match(/^(.{2,50})\s*[-–—]\s+(.+)/);
+    if (dashMatch) {
+      return { term: dashMatch[1].trim(), definition: dashMatch[2].trim() };
+    }
+    return { term: '', definition: line.trim() };
+  }).filter(d => d.definition);
+
+  if (parsed.length === 0) return null;
+
+  const [open, setOpen] = useState(true);
+
+  return (
+    <div className="card overflow-hidden mb-3">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between py-3 px-4 bg-indigo-50 hover:bg-indigo-100 transition-colors border-b border-indigo-200"
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="w-1 h-4 bg-indigo-500 rounded-full" />
+          <span className="font-semibold text-sm text-indigo-800">הגדרות ומונחים</span>
+          <span className="text-xs text-indigo-400 mr-1">{parsed.length} מונחים</span>
+        </div>
+        <svg
+          className={`w-4 h-4 text-indigo-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      <div className={`transition-all duration-200 overflow-hidden ${open ? 'max-h-[10000px]' : 'max-h-0'}`}>
+        <div className="p-3 space-y-1.5">
+          {parsed.map((item, i) => (
+            <div key={i} className="flex items-start gap-3 px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-100">
+              <svg className="w-4 h-4 text-indigo-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              <div className="flex-1 min-w-0">
+                {item.term ? (
+                  <>
+                    <span className="text-sm font-semibold text-indigo-700">{item.term}</span>
+                    <p className="text-sm text-gray-600 leading-relaxed mt-0.5">{item.definition}</p>
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-600 leading-relaxed">{item.definition}</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ResultsTable({ data, onDataChange }: ResultsTableProps) {
   const mainFields = Object.entries(FIELD_LABELS).filter(([key]) => key !== 'tenderName');
 
@@ -402,10 +466,15 @@ export default function ResultsTable({ data, onDataChange }: ResultsTableProps) 
       </Section>
 
       <Section title="מסמכים, פורמט וקנסות">
-        {mainFields.slice(22).filter(([key]) => !['riskScore', 'executiveSummary', 'submissionChecklist', 'redFlags'].includes(key)).map(([key, label]) => (
+        {mainFields.slice(22).filter(([key]) => !['riskScore', 'executiveSummary', 'submissionChecklist', 'redFlags', 'definitions'].includes(key)).map(([key, label]) => (
           <DataRow key={key} label={label} value={data[key as keyof TenderAnalysis]} onEdit={onDataChange ? (v) => editField(key, v) : undefined} />
         ))}
       </Section>
+
+      {/* Definitions - dedicated visual section */}
+      {data.definitions && stringify(data.definitions).trim() && (
+        <DefinitionsSection definitions={stringify(data.definitions)} />
+      )}
 
       {/* Red Flags - dedicated visual section */}
       {data.redFlags && stringify(data.redFlags).trim() && (
