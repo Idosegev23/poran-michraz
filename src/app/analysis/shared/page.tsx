@@ -119,7 +119,7 @@ function SharedContent() {
             <p className="text-sm text-gray-500 mt-0.5">{stringify(data.tenderName).substring(0, 70) || 'מסמך מכרז'}</p>
           </div>
         </div>
-        <ResultsTable data={data} />
+        <ResultsTable data={data} onDataChange={setData} />
       </div>
     </main>
   );

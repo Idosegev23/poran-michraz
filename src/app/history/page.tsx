@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface HistoryItem {
@@ -10,10 +10,14 @@ interface HistoryItem {
   createdAt: string;
 }
 
+type SortKey = 'date' | 'name';
+
 export default function HistoryPage() {
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<SortKey>('date');
   const router = useRouter();
 
   useEffect(() => {
@@ -23,6 +27,22 @@ export default function HistoryPage() {
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
   }, []);
+
+  const filtered = useMemo(() => {
+    let list = items;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter(i =>
+        i.tenderName.toLowerCase().includes(q) ||
+        i.fileName.toLowerCase().includes(q)
+      );
+    }
+    if (sort === 'name') {
+      list = [...list].sort((a, b) => a.tenderName.localeCompare(b.tenderName, 'he'));
+    }
+    // default 'date' is already sorted by API (newest first)
+    return list;
+  }, [items, search, sort]);
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -57,21 +77,58 @@ export default function HistoryPage() {
             <div className="h-4 w-px bg-gray-200" />
             <span className="text-sm text-gray-400">היסטוריית ניתוחים</span>
           </div>
-          <a
-            href="/"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            מכרז חדש
-          </a>
+          <div className="flex items-center gap-2">
+            <a
+              href="/compare"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              השוואה
+            </a>
+            <a
+              href="/"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              מכרז חדש
+            </a>
+          </div>
         </div>
       </header>
 
       <div className="flex-1 max-w-5xl mx-auto w-full px-6 py-6">
         <h1 className="text-xl font-bold text-gray-900 mb-1">מכרזים שנותחו</h1>
-        <p className="text-sm text-gray-400 mb-6">כל הניתוחים שבוצעו נשמרים כאן</p>
+        <p className="text-sm text-gray-400 mb-4">כל הניתוחים שבוצעו נשמרים כאן</p>
+
+        {/* Search & Sort */}
+        {!loading && items.length > 0 && (
+          <div className="flex items-center gap-3 mb-4">
+            <div className="relative flex-1">
+              <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="חפש לפי שם מכרז או קובץ..."
+                className="w-full pr-10 pl-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 bg-white"
+              />
+            </div>
+            <select
+              value={sort}
+              onChange={e => setSort(e.target.value as SortKey)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-teal-400 cursor-pointer"
+            >
+              <option value="date">תאריך</option>
+              <option value="name">שם</option>
+            </select>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center py-16">
@@ -90,9 +147,15 @@ export default function HistoryPage() {
               נתח מכרז
             </a>
           </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-500 font-medium">לא נמצאו תוצאות</p>
+            <p className="text-sm text-gray-400 mt-1">נסה מילות חיפוש אחרות</p>
+          </div>
         ) : (
           <div className="space-y-2">
-            {items.map(item => (
+            <p className="text-xs text-gray-400 px-1 mb-1">{filtered.length} מכרזים</p>
+            {filtered.map(item => (
               <div
                 key={item.id}
                 onClick={() => handleView(item.id)}

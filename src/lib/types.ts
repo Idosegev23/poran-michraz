@@ -26,12 +26,16 @@ export interface TenderAnalysis {
   indexLinked: string;
   bidderQualityMetrics: string;
   functionQualityMetrics: string;
+  tenderDocumentsFee: string;
   tenderDocuments: string;
   paymentMilestones: string;
   definitions: string;
   submissionFormat: string;
   penalties: string;
   redFlags: string;
+  riskScore: string;
+  executiveSummary: string;
+  submissionChecklist: string;
 }
 
 export interface AnalysisResult {
@@ -62,12 +66,16 @@ export const FIELD_LABELS: Record<string, string> = {
   indexLinked: 'האם התמורה צמודה למדד',
   bidderQualityMetrics: 'מדדי איכות מציע',
   functionQualityMetrics: 'מדדי איכות לגבי כל פונקציה בנפרד',
+  tenderDocumentsFee: 'תשלום עבור מסמכי המכרז',
   tenderDocuments: 'מסמכים קיימים במסגרת המכרז',
   paymentMilestones: 'אבני דרך לתשלום',
   definitions: 'הגדרות',
   submissionFormat: 'פורמט ההגשה (מס\' כרכים, מגבלת עמודים, שפה)',
   penalties: 'קנסות',
   redFlags: 'דגל אדום (בחלוקה לפי נושאים)',
+  riskScore: 'ציון סיכון כולל (1-10)',
+  executiveSummary: 'סיכום מנהלים – המלצת Go/No-Go',
+  submissionChecklist: 'רשימת תיוג להגשה',
 };
 
 export const DATE_LABELS: Record<string, string> = {

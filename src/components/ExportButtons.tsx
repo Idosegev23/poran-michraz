@@ -178,6 +178,81 @@ async function exportToExcel(data: TenderAnalysis) {
   URL.revokeObjectURL(url);
 }
 
+function exportToCalendar(data: TenderAnalysis) {
+  const tenderName = stringify(data.tenderName).substring(0, 80) || 'מכרז';
+  const dates = data.relevantDates;
+  if (!dates) return;
+
+  const events: string[] = [];
+  const dateEntries: { label: string; value: string }[] = [
+    { label: 'מפגש מציעים', value: dates.biddersMeeting },
+    { label: 'שאלות הבהרה', value: dates.clarificationQuestions },
+    { label: 'בדיקת ערבות הצעה', value: dates.bidBondCheck },
+    { label: 'מועד הגשת ההצעה', value: dates.submissionDeadline },
+  ];
+
+  for (const { label, value } of dateEntries) {
+    if (!value || !value.trim()) continue;
+
+    // Try to extract a date from the Hebrew text
+    // Common formats: DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY
+    const dateMatch = value.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
+    let dtStart: string;
+
+    if (dateMatch) {
+      const day = dateMatch[1].padStart(2, '0');
+      const month = dateMatch[2].padStart(2, '0');
+      let year = dateMatch[3];
+      if (year.length === 2) year = '20' + year;
+      dtStart = `${year}${month}${day}`;
+    } else {
+      // If no parseable date, skip this event
+      continue;
+    }
+
+    // Try to extract time (HH:MM)
+    const timeMatch = value.match(/(\d{1,2}):(\d{2})/);
+    let dtValue: string;
+    if (timeMatch) {
+      const hour = timeMatch[1].padStart(2, '0');
+      const min = timeMatch[2];
+      dtValue = `DTSTART:${dtStart}T${hour}${min}00\nDTEND:${dtStart}T${String(Math.min(23, parseInt(hour) + 1)).padStart(2, '0')}${min}00`;
+    } else {
+      dtValue = `DTSTART;VALUE=DATE:${dtStart}\nDTEND;VALUE=DATE:${dtStart}`;
+    }
+
+    events.push(
+`BEGIN:VEVENT
+${dtValue}
+SUMMARY:${label} - ${tenderName}
+DESCRIPTION:${value.replace(/\n/g, '\\n')}
+END:VEVENT`
+    );
+  }
+
+  if (events.length === 0) {
+    alert('לא נמצאו תאריכים ניתנים לייצוא');
+    return;
+  }
+
+  const ics =
+`BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Poran Shrem//Tender Analyzer//HE
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+${events.join('\n')}
+END:VCALENDAR`;
+
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `מועדי_מכרז_${tenderName.substring(0, 30)}.ics`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 async function shareAnalysis(
   data: TenderAnalysis,
   setShareUrl: (url: string | null) => void,
@@ -289,6 +364,18 @@ export default function ExportButtons({ data }: ExportButtonsProps) {
           )}
           שתף
         </button>
+
+        {data.relevantDates && (
+          <button
+            onClick={() => exportToCalendar(data)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            יומן
+          </button>
+        )}
       </div>
 
       {/* Share dialog */}
