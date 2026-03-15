@@ -2,7 +2,6 @@
 
 import { TenderAnalysis, FIELD_LABELS, DATE_LABELS } from '@/lib/types';
 import { useState } from 'react';
-import pako from 'pako';
 
 interface ExportButtonsProps {
   data: TenderAnalysis;
@@ -18,6 +17,15 @@ function stringify(val: unknown): string {
       .join('\n');
   }
   return String(val);
+}
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/\n/g, '<br/>');
 }
 
 interface RowData {
@@ -59,29 +67,85 @@ function getAllRows(data: TenderAnalysis): RowData[] {
   return rows;
 }
 
-async function exportToPDF(data: TenderAnalysis, setGenerating: (v: boolean) => void) {
-  try {
-    setGenerating(true);
-    const res = await fetch('/api/export-pdf', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data }),
-    });
+function buildPrintHtml(data: TenderAnalysis): string {
+  const rows = getAllRows(data);
+  const tableRows = rows
+    .map((row, i) => {
+      if (row.isSection) {
+        return `<tr><td colspan="2" style="background:#0d7377;color:#fff;padding:10px 14px;font-weight:bold;font-size:13px;border:1px solid #095456;">${escapeHtml(row.label)}</td></tr>`;
+      }
+      const bg = i % 2 === 0 ? '#f0f7f7' : '#ffffff';
+      const val = row.value
+        ? escapeHtml(row.value)
+        : '<span style="color:#999;font-style:italic;">לא צוין במסמך</span>';
+      return `<tr style="background:${bg};">
+      <td style="padding:9px 14px;font-weight:600;color:#0a5c5f;vertical-align:top;border:1px solid #d0d5dd;width:28%;background:#e6f0f0;">${escapeHtml(row.label)}</td>
+      <td style="padding:9px 14px;color:#222;vertical-align:top;border:1px solid #d0d5dd;line-height:1.7;">${val}</td>
+    </tr>`;
+    })
+    .join('');
 
-    if (!res.ok) throw new Error('PDF generation failed');
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="utf-8"/>
+  <title>ניתוח מכרז - פורן שרם</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@300;400;500;600;700&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Noto Sans Hebrew', 'Segoe UI', Tahoma, Arial, sans-serif;
+      direction: rtl;
+      color: #222;
+      background: #fff;
+      padding: 20px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 11.5px; page-break-inside: auto; }
+    tr { page-break-inside: avoid; }
+    @media print {
+      .no-print { display: none !important; }
+      body { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;margin-bottom:20px;text-align:center;font-size:13px;color:#15803d;">
+    לחץ Ctrl+P (או ⌘+P) ובחר "שמור כ-PDF" להורדת הקובץ
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:0 0 16px 0;border-bottom:3px solid #0d7377;margin-bottom:20px;">
+    <div>
+      <h1 style="color:#0d7377;font-size:22px;font-weight:700;">ניתוח מכרז</h1>
+      <p style="color:#666;font-size:12px;margin-top:6px;">${escapeHtml(stringify(data.tenderName).substring(0, 120))}</p>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr style="background:#0d7377;">
+        <th style="color:#fff;padding:10px 14px;text-align:right;width:28%;border:1px solid #095456;font-size:12px;">נושא</th>
+        <th style="color:#fff;padding:10px 14px;text-align:right;border:1px solid #095456;font-size:12px;">פירוט</th>
+      </tr>
+    </thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+  <div style="margin-top:20px;padding-top:10px;border-top:2px solid #0d7377;text-align:center;color:#888;font-size:9px;">
+    פורן שרם - ניהול פרויקטים, הנדסה, פיקוח | מופעל על ידי Claude AI
+  </div>
+  <script>window.onload=function(){window.print();}</script>
+</body>
+</html>`;
+}
 
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `ניתוח_מכרז_${stringify(data.tenderName) || 'מסמך'}.pdf`;
-    link.click();
-    URL.revokeObjectURL(url);
-  } catch {
-    alert('שגיאה ביצירת PDF. נסה שוב.');
-  } finally {
-    setGenerating(false);
+function exportToPDF(data: TenderAnalysis) {
+  const html = buildPrintHtml(data);
+  const win = window.open('', '_blank');
+  if (!win) {
+    alert('יש לאפשר חלונות קופצים (popups) בדפדפן');
+    return;
   }
+  win.document.write(html);
+  win.document.close();
 }
 
 async function exportToExcel(data: TenderAnalysis) {
@@ -91,7 +155,6 @@ async function exportToExcel(data: TenderAnalysis) {
     views: [{ rightToLeft: true }],
   });
 
-  // Logo
   try {
     const logoResponse = await fetch('/logo.png');
     const logoBuffer = await logoResponse.arrayBuffer();
@@ -171,73 +234,141 @@ async function exportToExcel(data: TenderAnalysis) {
   URL.revokeObjectURL(url);
 }
 
-function shareAnalysis(data: TenderAnalysis) {
-  const jsonStr = JSON.stringify(data);
-  const compressed = pako.deflate(new TextEncoder().encode(jsonStr));
-  // URL-safe base64
-  const b64 = btoa(String.fromCharCode(...compressed))
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  const shareUrl = `${window.location.origin}/analysis/shared?z=${b64}`;
-  navigator.clipboard.writeText(shareUrl);
+async function shareAnalysis(
+  data: TenderAnalysis,
+  setShareUrl: (url: string | null) => void,
+  setShareLoading: (v: boolean) => void
+) {
+  setShareLoading(true);
+  try {
+    // Try server-side storage for short URL
+    const res = await fetch('/api/share', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+
+    if (res.ok) {
+      const { id } = await res.json();
+      const shortUrl = `${window.location.origin}/analysis/shared?id=${id}`;
+      await navigator.clipboard.writeText(shortUrl);
+      setShareUrl(shortUrl);
+    } else {
+      throw new Error('API failed');
+    }
+  } catch {
+    // Fallback: compressed URL
+    const pako = (await import('pako')).default;
+    const jsonStr = JSON.stringify(data);
+    const compressed = pako.deflate(new TextEncoder().encode(jsonStr));
+    const b64 = btoa(String.fromCharCode(...compressed))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const longUrl = `${window.location.origin}/analysis/shared?z=${b64}`;
+    try { await navigator.clipboard.writeText(longUrl); } catch { /* */ }
+    setShareUrl(longUrl);
+  } finally {
+    setShareLoading(false);
+  }
 }
 
 export default function ExportButtons({ data }: ExportButtonsProps) {
-  const [copied, setCopied] = useState(false);
-  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [justCopied, setJustCopied] = useState(false);
 
   const handleShare = () => {
-    shareAnalysis(data);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 3000);
+    shareAnalysis(data, setShareUrl, setShareLoading);
+  };
+
+  const handleCopy = async () => {
+    if (shareUrl) {
+      await navigator.clipboard.writeText(shareUrl);
+      setJustCopied(true);
+      setTimeout(() => setJustCopied(false), 2000);
+    }
   };
 
   return (
-    <div className="flex gap-2 flex-wrap">
-      <button
-        onClick={() => exportToPDF(data, setGeneratingPdf)}
-        disabled={generatingPdf}
-        className={`flex items-center gap-2 px-4 py-2 text-xs font-medium rounded-lg transition-all duration-300 border ${
-          generatingPdf
-            ? 'text-red-300/60 bg-red-500/5 border-red-500/10 cursor-wait'
-            : 'text-red-400/80 bg-red-500/10 hover:bg-red-500/20 border-red-500/15'
-        }`}
-      >
-        {generatingPdf ? (
-          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-        ) : (
+    <>
+      <div className="flex gap-2 flex-wrap">
+        <button
+          onClick={() => exportToPDF(data)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors"
+        >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-        )}
-        {generatingPdf ? 'מייצר...' : 'PDF'}
-      </button>
+          PDF
+        </button>
 
-      <button
-        onClick={() => exportToExcel(data)}
-        className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-green-400/80 bg-green-500/10 hover:bg-green-500/20 border border-green-500/15 rounded-lg transition-all duration-300"
-      >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        Excel
-      </button>
+        <button
+          onClick={() => exportToExcel(data)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Excel
+        </button>
 
-      <button
-        onClick={handleShare}
-        className={`flex items-center gap-2 px-4 py-2 text-xs font-medium rounded-lg transition-all duration-300 border ${
-          copied
-            ? 'text-teal-300 bg-teal-500/20 border-teal-500/30'
-            : 'text-teal-400/80 bg-teal-500/10 hover:bg-teal-500/20 border-teal-500/15'
-        }`}
-      >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-        </svg>
-        {copied ? 'הועתק!' : 'שתף'}
-      </button>
-    </div>
+        <button
+          onClick={handleShare}
+          disabled={shareLoading}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors border ${
+            shareLoading
+              ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-wait'
+              : 'text-teal-700 bg-teal-50 hover:bg-teal-100 border-teal-200'
+          }`}
+        >
+          {shareLoading ? (
+            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+          ) : (
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+            </svg>
+          )}
+          שתף
+        </button>
+      </div>
+
+      {/* Share dialog */}
+      {shareUrl && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 p-4" onClick={() => setShareUrl(null)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-900">קישור לשיתוף</h3>
+              <button onClick={() => setShareUrl(null)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                readOnly
+                value={shareUrl}
+                className="flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg text-gray-700 select-all"
+                onFocus={e => e.target.select()}
+              />
+              <button
+                onClick={handleCopy}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  justCopied
+                    ? 'bg-teal-500 text-white'
+                    : 'bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200'
+                }`}
+              >
+                {justCopied ? 'הועתק!' : 'העתק'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-2">הקישור הועתק ללוח. שתף אותו עם הצוות.</p>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

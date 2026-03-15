@@ -32,22 +32,20 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col relative z-10">
+    <main className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl bg-[#0B1120]/80 border-b border-white/[0.04]">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <img src="/logo.png" alt="פורן שרם" className="h-9 object-contain brightness-0 invert opacity-90" />
-            </div>
-            <div className="h-5 w-px bg-white/10" />
-            <span className="text-sm font-medium text-white/40">ניתוח מכרזים</span>
+      <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
+        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="פורן שרם" className="h-8 object-contain" />
+            <div className="h-4 w-px bg-gray-200" />
+            <span className="text-sm text-gray-400">ניתוח מכרזים</span>
           </div>
           <div className="flex items-center gap-3">
             {analysisData && (
               <button
                 onClick={handleReset}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-400 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/20 rounded-xl transition-all duration-300"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -55,9 +53,9 @@ export default function Home() {
                 מכרז חדש
               </button>
             )}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 border border-teal-500/20">
-              <span className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-pulse" />
-              <span className="text-xs text-teal-400 font-medium">AI פעיל</span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-teal-50 border border-teal-100">
+              <span className="w-1.5 h-1.5 bg-teal-500 rounded-full" />
+              <span className="text-xs text-teal-700 font-medium">AI פעיל</span>
             </div>
           </div>
         </div>
@@ -66,31 +64,20 @@ export default function Home() {
       {/* Upload State */}
       {!analysisData && (
         <div className="flex-1 flex flex-col">
-          {/* Hero */}
-          <div className="pt-20 pb-6 px-6">
-            <div className="max-w-3xl mx-auto text-center animate-fade-up">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.06] text-sm text-white/50 mb-8">
-                <span className="text-teal-400">Claude Opus 4.6</span>
-                <span className="text-white/20">|</span>
-                <span>ניתוח עומק עם חשיבה מורחבת</span>
-              </div>
-              <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-5">
-                <span className="text-white">ניתוח מכרזים</span>
-                <br />
-                <span className="bg-gradient-to-l from-teal-400 to-emerald-300 bg-clip-text text-transparent">
-                  בבינה מלאכותית
-                </span>
+          <div className="pt-16 pb-6 px-6">
+            <div className="max-w-2xl mx-auto text-center animate-fade-up">
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
+                ניתוח מכרזים בבינה מלאכותית
               </h1>
-              <p className="text-lg text-white/40 max-w-lg mx-auto leading-relaxed">
+              <p className="text-base text-gray-500 max-w-lg mx-auto leading-relaxed">
                 העלה מסמך מכרז והמערכת תנתח אותו מקצה לקצה,
                 תחלץ 27+ שדות מובנים בטבלה מסודרת
               </p>
             </div>
           </div>
 
-          {/* Upload */}
           <div className="px-6 pb-8">
-            <div className="max-w-2xl mx-auto animate-fade-up delay-100">
+            <div className="max-w-xl mx-auto animate-fade-up delay-100">
               <FileUpload
                 onAnalysisComplete={handleAnalysisComplete}
                 onError={handleError}
@@ -98,35 +85,35 @@ export default function Home() {
             </div>
 
             {error && (
-              <div className="mt-6 max-w-2xl mx-auto animate-fade-up glass-card p-4 border-red-500/20">
+              <div className="mt-4 max-w-xl mx-auto card p-4 border-red-200">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-red-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </div>
-                  <p className="text-sm text-red-300">{error}</p>
+                  <p className="text-sm text-red-600">{error}</p>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Bento Features */}
-          <div className="px-6 pb-16 mt-4">
-            <div className="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="px-6 pb-12 mt-2">
+            <div className="max-w-3xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { icon: '📄', title: 'PDF & Word', desc: 'העלאת מסמכים' },
-                { icon: '🧠', title: 'ניתוח עמוק', desc: '27+ שדות' },
-                { icon: '📊', title: 'ייצוא', desc: 'PDF & Excel' },
-                { icon: '🔗', title: 'שיתוף', desc: 'קישור ישיר' },
-              ].map((item, i) => (
-                <div
-                  key={item.title}
-                  className={`animate-fade-up delay-${(i + 2) * 100} glass-card glass-card-hover p-5 text-center`}
-                >
-                  <div className="text-2xl mb-3">{item.icon}</div>
-                  <p className="text-sm font-semibold text-white/80">{item.title}</p>
-                  <p className="text-xs text-white/30 mt-1">{item.desc}</p>
+                { title: 'PDF & Word', desc: 'העלאת מסמכים', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+                { title: 'ניתוח עמוק', desc: '27+ שדות', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
+                { title: 'ייצוא', desc: 'PDF & Excel', icon: 'M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+                { title: 'שיתוף', desc: 'קישור ישיר', icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1' },
+              ].map((item) => (
+                <div key={item.title} className="card p-4 text-center">
+                  <div className="w-9 h-9 mx-auto mb-2 bg-teal-50 rounded-lg flex items-center justify-center">
+                    <svg className="w-4.5 h-4.5 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={item.icon} />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-medium text-gray-700">{item.title}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{item.desc}</p>
                 </div>
               ))}
             </div>
@@ -136,19 +123,18 @@ export default function Home() {
 
       {/* Results State */}
       {analysisData && (
-        <div className="flex-1 px-6 py-8">
-          <div className="max-w-6xl mx-auto space-y-6 animate-fade-up">
-            {/* Success bar */}
-            <div className="glass-card p-5 flex items-center justify-between glow-brand">
-              <div className="flex items-center gap-4">
-                <div className="w-11 h-11 bg-teal-500/15 rounded-xl flex items-center justify-center">
-                  <svg className="w-6 h-6 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="flex-1 px-6 py-6">
+          <div className="max-w-5xl mx-auto space-y-4 animate-fade-up">
+            <div className="card p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-teal-50 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
                 <div>
-                  <p className="font-semibold text-white">הניתוח הושלם</p>
-                  <p className="text-sm text-white/40 mt-0.5">{stringify(analysisData.tenderName).substring(0, 70) || 'מסמך מכרז'}</p>
+                  <p className="font-semibold text-gray-900">הניתוח הושלם</p>
+                  <p className="text-sm text-gray-500 mt-0.5">{stringify(analysisData.tenderName).substring(0, 70) || 'מסמך מכרז'}</p>
                 </div>
               </div>
               <ExportButtons data={analysisData} />
@@ -156,7 +142,7 @@ export default function Home() {
 
             <ResultsTable data={analysisData} />
 
-            <div className="flex justify-center pt-2 pb-8">
+            <div className="flex justify-center pt-2 pb-6">
               <ExportButtons data={analysisData} />
             </div>
           </div>
@@ -164,8 +150,8 @@ export default function Home() {
       )}
 
       {/* Footer */}
-      <footer className="mt-auto border-t border-white/[0.04] py-5 relative z-10">
-        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between text-xs text-white/20">
+      <footer className="mt-auto border-t border-gray-100 py-4">
+        <div className="max-w-6xl mx-auto px-6 flex items-center justify-between text-xs text-gray-400">
           <span>פורן שרם - ניהול פרויקטים, הנדסה, פיקוח</span>
           <span>Powered by Claude AI</span>
         </div>

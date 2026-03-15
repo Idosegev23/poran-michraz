@@ -77,91 +77,81 @@ export default function FileUpload({ onAnalysisComplete, onError }: FileUploadPr
         onDragLeave={() => setIsDragging(false)}
         onDrop={e => { e.preventDefault(); setIsDragging(false); const f = e.dataTransfer.files[0]; f && handleFile(f); }}
         className={`
-          glass-card relative overflow-hidden transition-all duration-500
-          ${isLoading ? 'p-10' : 'p-12 cursor-pointer glass-card-hover'}
-          ${isDragging ? 'border-teal-500/40 bg-teal-500/[0.03] scale-[1.01]' : ''}
+          card relative overflow-hidden transition-all duration-300
+          ${isLoading ? 'p-8' : 'p-10 cursor-pointer hover:border-teal-300 hover:shadow-md'}
+          ${isDragging ? 'border-teal-400 bg-teal-50 shadow-md' : ''}
         `}
       >
         <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx" onChange={e => { const f = e.target.files?.[0]; f && handleFile(f); }} className="hidden" disabled={isLoading} />
 
         {isLoading ? (
-          <div className="flex flex-col items-center gap-6">
-            {/* Spinner with percentage */}
-            <div className="relative w-28 h-28">
-              <svg className="w-28 h-28 -rotate-90" viewBox="0 0 120 120">
-                <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="6" />
+          <div className="flex flex-col items-center gap-5">
+            {/* Progress circle */}
+            <div className="relative w-24 h-24">
+              <svg className="w-24 h-24 -rotate-90" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="52" fill="none" stroke="#E5E7EB" strokeWidth="6" />
                 <circle
                   cx="60" cy="60" r="52" fill="none"
-                  stroke="url(#grad)" strokeWidth="6"
+                  stroke="#0D9488" strokeWidth="6"
                   strokeLinecap="round"
                   strokeDasharray={`${(cur.pct / 100) * 327} 327`}
                   className="transition-all duration-1000 ease-out"
                 />
-                <defs>
-                  <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#14B8A6" />
-                    <stop offset="100%" stopColor="#6366F1" />
-                  </linearGradient>
-                </defs>
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-2xl font-bold text-white">{cur.pct}%</span>
+                <span className="text-xl font-bold text-gray-900">{cur.pct}%</span>
               </div>
             </div>
 
             <div className="text-center">
-              <p className="text-lg font-semibold text-white">{cur.text}</p>
-              <p className="text-sm text-white/30 mt-1">{cur.detail}</p>
+              <p className="text-base font-semibold text-gray-900">{cur.text}</p>
+              <p className="text-sm text-gray-400 mt-1">{cur.detail}</p>
             </div>
 
             {fileName && (
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.03] border border-white/[0.06]">
-                <div className="w-2 h-2 bg-teal-400 rounded-full animate-pulse" />
-                <span className="text-xs text-white/50">{fileName}</span>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200">
+                <div className="w-1.5 h-1.5 bg-teal-500 rounded-full animate-pulse" />
+                <span className="text-xs text-gray-500">{fileName}</span>
               </div>
             )}
 
             <div className="w-full max-w-xs">
-              <div className="h-1 bg-white/[0.04] rounded-full overflow-hidden">
+              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-teal-500 to-indigo-500 transition-all duration-1000 ease-out"
+                  className="h-full rounded-full bg-teal-500 transition-all duration-1000 ease-out"
                   style={{ width: `${cur.pct}%` }}
                 />
               </div>
             </div>
 
-            <div className="flex items-center gap-6 text-[11px] text-white/20">
+            <div className="flex items-center gap-6 text-xs text-gray-400">
               <span>{fmt(elapsed)}</span>
               <div className="flex gap-1">
                 {STEPS.map((_, i) => (
-                  <div key={i} className={`h-0.5 rounded-full transition-all duration-500 ${i <= step ? 'w-3 bg-teal-500' : 'w-1.5 bg-white/10'}`} />
+                  <div key={i} className={`h-1 rounded-full transition-all duration-500 ${i <= step ? 'w-3 bg-teal-500' : 'w-1.5 bg-gray-200'}`} />
                 ))}
               </div>
               <span>שלב {step + 1}/{STEPS.length}</span>
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-6 text-center">
-            <div className="relative animate-float">
-              <div className="w-20 h-20 bg-gradient-to-br from-teal-500/20 to-indigo-500/20 rounded-2xl flex items-center justify-center border border-white/[0.06]">
-                <svg className="w-9 h-9 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-              </div>
-              <div className="absolute -top-1.5 -right-1.5 px-2 py-0.5 bg-red-500/80 rounded-md text-[9px] font-bold text-white">PDF</div>
-              <div className="absolute -bottom-1.5 -left-1.5 px-2 py-0.5 bg-blue-500/80 rounded-md text-[9px] font-bold text-white">DOCX</div>
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="w-16 h-16 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-200">
+              <svg className="w-7 h-7 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
             </div>
 
             <div>
-              <p className="text-xl font-semibold text-white/90">גרור ושחרר קובץ מכרז</p>
-              <p className="text-sm text-white/30 mt-2">
-                או <span className="text-teal-400 font-medium cursor-pointer hover:underline">בחר קובץ</span> מהמחשב
+              <p className="text-lg font-semibold text-gray-800">גרור ושחרר קובץ מכרז</p>
+              <p className="text-sm text-gray-400 mt-1.5">
+                או <span className="text-teal-600 font-medium cursor-pointer hover:underline">בחר קובץ</span> מהמחשב
               </p>
             </div>
 
             <div className="flex gap-2">
-              <span className="px-3 py-1 text-xs font-medium text-red-400/70 bg-red-500/10 border border-red-500/10 rounded-lg">PDF</span>
-              <span className="px-3 py-1 text-xs font-medium text-blue-400/70 bg-blue-500/10 border border-blue-500/10 rounded-lg">Word</span>
+              <span className="px-2.5 py-1 text-xs font-medium text-red-600 bg-red-50 border border-red-100 rounded-md">PDF</span>
+              <span className="px-2.5 py-1 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-100 rounded-md">Word</span>
             </div>
           </div>
         )}
