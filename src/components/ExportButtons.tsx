@@ -67,7 +67,7 @@ function getAllRows(data: TenderAnalysis): RowData[] {
   return rows;
 }
 
-function buildPrintHtml(data: TenderAnalysis): string {
+function buildPdfElement(data: TenderAnalysis): HTMLDivElement {
   const rows = getAllRows(data);
   const tableRows = rows
     .map((row, i) => {
@@ -85,67 +85,70 @@ function buildPrintHtml(data: TenderAnalysis): string {
     })
     .join('');
 
-  return `<!DOCTYPE html>
-<html dir="rtl" lang="he">
-<head>
-  <meta charset="utf-8"/>
-  <title>ניתוח מכרז - פורן שרם</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@300;400;500;600;700&display=swap');
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Noto Sans Hebrew', 'Segoe UI', Tahoma, Arial, sans-serif;
-      direction: rtl;
-      color: #222;
-      background: #fff;
-      padding: 20px;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
-    table { width: 100%; border-collapse: collapse; font-size: 11.5px; page-break-inside: auto; }
-    tr { page-break-inside: avoid; }
-    @media print {
-      .no-print { display: none !important; }
-      body { padding: 0; }
-    }
-  </style>
-</head>
-<body>
-  <div class="no-print" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;margin-bottom:20px;text-align:center;font-size:13px;color:#15803d;">
-    לחץ Ctrl+P (או ⌘+P) ובחר "שמור כ-PDF" להורדת הקובץ
-  </div>
-  <div style="display:flex;justify-content:space-between;align-items:center;padding:0 0 16px 0;border-bottom:3px solid #0d7377;margin-bottom:20px;">
-    <div>
-      <h1 style="color:#0d7377;font-size:22px;font-weight:700;">ניתוח מכרז</h1>
-      <p style="color:#666;font-size:12px;margin-top:6px;">${escapeHtml(stringify(data.tenderName).substring(0, 120))}</p>
+  const container = document.createElement('div');
+  container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;direction:rtl;font-family:Arial,Tahoma,sans-serif;color:#222;background:#fff;padding:20px;';
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:0 0 16px 0;border-bottom:3px solid #0d7377;margin-bottom:20px;">
+      <div>
+        <h1 style="color:#0d7377;font-size:22px;font-weight:700;">ניתוח מכרז</h1>
+        <p style="color:#666;font-size:12px;margin-top:6px;">${escapeHtml(stringify(data.tenderName).substring(0, 120))}</p>
+      </div>
     </div>
-  </div>
-  <table>
-    <thead>
-      <tr style="background:#0d7377;">
-        <th style="color:#fff;padding:10px 14px;text-align:right;width:28%;border:1px solid #095456;font-size:12px;">נושא</th>
-        <th style="color:#fff;padding:10px 14px;text-align:right;border:1px solid #095456;font-size:12px;">פירוט</th>
-      </tr>
-    </thead>
-    <tbody>${tableRows}</tbody>
-  </table>
-  <div style="margin-top:20px;padding-top:10px;border-top:2px solid #0d7377;text-align:center;color:#888;font-size:9px;">
-    פורן שרם - ניהול פרויקטים, הנדסה, פיקוח | מופעל על ידי Claude AI
-  </div>
-  <script>window.onload=function(){window.print();}</script>
-</body>
-</html>`;
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+      <thead>
+        <tr style="background:#0d7377;">
+          <th style="color:#fff;padding:10px 14px;text-align:right;width:28%;border:1px solid #095456;font-size:12px;">נושא</th>
+          <th style="color:#fff;padding:10px 14px;text-align:right;border:1px solid #095456;font-size:12px;">פירוט</th>
+        </tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+    <div style="margin-top:20px;padding-top:10px;border-top:2px solid #0d7377;text-align:center;color:#888;font-size:9px;">
+      פורן שרם - ניהול פרויקטים, הנדסה, פיקוח | מופעל על ידי Claude AI
+    </div>
+  `;
+
+  return container;
 }
 
-function exportToPDF(data: TenderAnalysis) {
-  const html = buildPrintHtml(data);
-  const win = window.open('', '_blank');
-  if (!win) {
-    alert('יש לאפשר חלונות קופצים (popups) בדפדפן');
-    return;
+async function exportToPDF(data: TenderAnalysis, setGenerating: (v: boolean) => void) {
+  try {
+    setGenerating(true);
+
+    const html2pdf = (await import('html2pdf.js')).default;
+
+    const element = buildPdfElement(data);
+    document.body.appendChild(element);
+
+    // Wait for fonts to load
+    await document.fonts?.ready;
+    await new Promise(r => setTimeout(r, 300));
+
+    const filename = `ניתוח_מכרז_${stringify(data.tenderName).substring(0, 40) || 'מסמך'}.pdf`;
+
+    await html2pdf()
+      .set({
+        margin: [8, 6, 8, 6],
+        filename,
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          letterRendering: true,
+          logging: false,
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+      })
+      .from(element)
+      .save();
+
+    document.body.removeChild(element);
+  } catch {
+    alert('שגיאה ביצירת PDF. נסה שוב.');
+  } finally {
+    setGenerating(false);
   }
-  win.document.write(html);
-  win.document.close();
 }
 
 async function exportToExcel(data: TenderAnalysis) {
@@ -275,6 +278,7 @@ export default function ExportButtons({ data }: ExportButtonsProps) {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
   const [justCopied, setJustCopied] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const handleShare = () => {
     shareAnalysis(data, setShareUrl, setShareLoading);
@@ -292,13 +296,25 @@ export default function ExportButtons({ data }: ExportButtonsProps) {
     <>
       <div className="flex gap-2 flex-wrap">
         <button
-          onClick={() => exportToPDF(data)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors"
+          onClick={() => exportToPDF(data, setGeneratingPdf)}
+          disabled={generatingPdf}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors border ${
+            generatingPdf
+              ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-wait'
+              : 'text-red-700 bg-red-50 hover:bg-red-100 border-red-200'
+          }`}
         >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          PDF
+          {generatingPdf ? (
+            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+          ) : (
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          )}
+          {generatingPdf ? 'מייצר...' : 'PDF'}
         </button>
 
         <button
