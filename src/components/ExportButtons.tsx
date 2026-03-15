@@ -67,83 +67,24 @@ function getAllRows(data: TenderAnalysis): RowData[] {
   return rows;
 }
 
-function buildPdfElement(data: TenderAnalysis): HTMLDivElement {
-  const rows = getAllRows(data);
-  const tableRows = rows
-    .map((row, i) => {
-      if (row.isSection) {
-        return `<tr><td colspan="2" style="background:#0d7377;color:#fff;padding:10px 14px;font-weight:bold;font-size:13px;border:1px solid #095456;">${escapeHtml(row.label)}</td></tr>`;
-      }
-      const bg = i % 2 === 0 ? '#f0f7f7' : '#ffffff';
-      const val = row.value
-        ? escapeHtml(row.value)
-        : '<span style="color:#999;font-style:italic;">לא צוין במסמך</span>';
-      return `<tr style="background:${bg};">
-      <td style="padding:9px 14px;font-weight:600;color:#0a5c5f;vertical-align:top;border:1px solid #d0d5dd;width:28%;background:#e6f0f0;">${escapeHtml(row.label)}</td>
-      <td style="padding:9px 14px;color:#222;vertical-align:top;border:1px solid #d0d5dd;line-height:1.7;">${val}</td>
-    </tr>`;
-    })
-    .join('');
-
-  const container = document.createElement('div');
-  container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;direction:rtl;font-family:Arial,Tahoma,sans-serif;color:#222;background:#fff;padding:20px;';
-  container.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:0 0 16px 0;border-bottom:3px solid #0d7377;margin-bottom:20px;">
-      <div>
-        <h1 style="color:#0d7377;font-size:22px;font-weight:700;">ניתוח מכרז</h1>
-        <p style="color:#666;font-size:12px;margin-top:6px;">${escapeHtml(stringify(data.tenderName).substring(0, 120))}</p>
-      </div>
-    </div>
-    <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
-      <thead>
-        <tr style="background:#0d7377;">
-          <th style="color:#fff;padding:10px 14px;text-align:right;width:28%;border:1px solid #095456;font-size:12px;">נושא</th>
-          <th style="color:#fff;padding:10px 14px;text-align:right;border:1px solid #095456;font-size:12px;">פירוט</th>
-        </tr>
-      </thead>
-      <tbody>${tableRows}</tbody>
-    </table>
-    <div style="margin-top:20px;padding-top:10px;border-top:2px solid #0d7377;text-align:center;color:#888;font-size:9px;">
-      פורן שרם - ניהול פרויקטים, הנדסה, פיקוח | מופעל על ידי Claude AI
-    </div>
-  `;
-
-  return container;
-}
-
 async function exportToPDF(data: TenderAnalysis, setGenerating: (v: boolean) => void) {
   try {
     setGenerating(true);
+    const res = await fetch('/api/export-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data }),
+    });
 
-    const html2pdf = (await import('html2pdf.js')).default;
+    if (!res.ok) throw new Error('PDF generation failed');
 
-    const element = buildPdfElement(data);
-    document.body.appendChild(element);
-
-    // Wait for fonts to load
-    await document.fonts?.ready;
-    await new Promise(r => setTimeout(r, 300));
-
-    const filename = `ניתוח_מכרז_${stringify(data.tenderName).substring(0, 40) || 'מסמך'}.pdf`;
-
-    await html2pdf()
-      .set({
-        margin: [8, 6, 8, 6],
-        filename,
-        image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          letterRendering: true,
-          logging: false,
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-      })
-      .from(element)
-      .save();
-
-    document.body.removeChild(element);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ניתוח_מכרז_${stringify(data.tenderName).substring(0, 40) || 'מסמך'}.pdf`;
+    link.click();
+    URL.revokeObjectURL(url);
   } catch {
     alert('שגיאה ביצירת PDF. נסה שוב.');
   } finally {
