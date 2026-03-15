@@ -41,7 +41,7 @@ export default function Home() {
             <div className="h-4 w-px bg-gray-200" />
             <span className="text-sm text-gray-400">ניתוח מכרזים</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {analysisData && (
               <button
                 onClick={handleReset}
@@ -53,10 +53,15 @@ export default function Home() {
                 מכרז חדש
               </button>
             )}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-teal-50 border border-teal-100">
-              <span className="w-1.5 h-1.5 bg-teal-500 rounded-full" />
-              <span className="text-xs text-teal-700 font-medium">AI פעיל</span>
-            </div>
+            <a
+              href="/history"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              היסטוריה
+            </a>
           </div>
         </div>
       </header>

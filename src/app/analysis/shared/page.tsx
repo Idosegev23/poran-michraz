@@ -24,10 +24,17 @@ function SharedContent() {
         // Short URL via Vercel Blob (id= param)
         const id = searchParams.get('id');
         if (id) {
-          const res = await fetch(`/api/share/${id}`);
-          if (res.ok) {
-            setData(await res.json());
-            return;
+          const source = searchParams.get('source');
+          // Try history first if source=history, otherwise try share then history
+          const endpoints = source === 'history'
+            ? [`/api/history/${id}`, `/api/share/${id}`]
+            : [`/api/share/${id}`, `/api/history/${id}`];
+          for (const endpoint of endpoints) {
+            const res = await fetch(endpoint);
+            if (res.ok) {
+              setData(await res.json());
+              return;
+            }
           }
           throw new Error('Not found');
         }

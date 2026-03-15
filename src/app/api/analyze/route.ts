@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseDocument } from '@/lib/parseDocument';
 import { analyzeTender } from '@/lib/claudeAnalyzer';
+import { put } from '@vercel/blob';
 
 export const maxDuration = 300;
 
@@ -42,6 +43,23 @@ export async function POST(request: NextRequest) {
 
     // Analyze with Claude
     const analysis = await analyzeTender(documentText);
+
+    // Save to history (non-blocking)
+    const id = crypto.randomUUID().slice(0, 8);
+    const tenderName = typeof analysis.tenderName === 'string'
+      ? analysis.tenderName.substring(0, 100)
+      : 'מכרז ללא שם';
+    const record = {
+      id,
+      fileName,
+      tenderName,
+      createdAt: new Date().toISOString(),
+      data: analysis,
+    };
+    put(`history/${id}.json`, JSON.stringify(record), {
+      access: 'public',
+      contentType: 'application/json',
+    }).catch(() => { /* history save is best-effort */ });
 
     return NextResponse.json({ success: true, data: analysis });
   } catch (error) {
