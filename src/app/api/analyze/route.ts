@@ -8,35 +8,56 @@ export const maxDuration = 300;
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
-    const file = formData.get('file') as File | null;
 
-    if (!file) {
+    // Support both single file (legacy "file") and multiple files ("files")
+    const files: File[] = [];
+    const multiFiles = formData.getAll('files');
+    const singleFile = formData.get('file');
+
+    if (multiFiles.length > 0) {
+      for (const f of multiFiles) {
+        if (f instanceof File) files.push(f);
+      }
+    } else if (singleFile instanceof File) {
+      files.push(singleFile);
+    }
+
+    if (files.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'לא נבחר קובץ' },
+        { success: false, error: 'לא נבחרו קבצים' },
         { status: 400 }
       );
     }
 
-    const fileName = file.name;
-    const extension = fileName.toLowerCase().split('.').pop();
-
-    if (!['pdf', 'doc', 'docx'].includes(extension || '')) {
-      return NextResponse.json(
-        { success: false, error: 'סוג קובץ לא נתמך. אנא העלה PDF או Word (.docx)' },
-        { status: 400 }
-      );
+    // Validate all files
+    const fileNames: string[] = [];
+    for (const file of files) {
+      const ext = file.name.toLowerCase().split('.').pop();
+      if (!['pdf', 'doc', 'docx'].includes(ext || '')) {
+        return NextResponse.json(
+          { success: false, error: `סוג קובץ לא נתמך: ${file.name}` },
+          { status: 400 }
+        );
+      }
+      fileNames.push(file.name);
     }
 
-    // Convert file to buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    // Parse all documents and concatenate text
+    const textParts: string[] = [];
+    for (const file of files) {
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const text = await parseDocument(buffer, file.name);
+      if (text && text.trim().length > 10) {
+        textParts.push(`\n\n===== מסמך: ${file.name} =====\n\n${text}`);
+      }
+    }
 
-    // Parse document
-    const documentText = await parseDocument(buffer, fileName);
+    const documentText = textParts.join('\n');
 
     if (!documentText || documentText.trim().length < 50) {
       return NextResponse.json(
-        { success: false, error: 'לא ניתן היה לחלץ טקסט מהמסמך. ודא שהקובץ תקין ומכיל טקסט.' },
+        { success: false, error: 'לא ניתן היה לחלץ טקסט מהמסמכים. ודא שהקבצים תקינים ומכילים טקסט.' },
         { status: 400 }
       );
     }
@@ -51,7 +72,7 @@ export async function POST(request: NextRequest) {
       : 'מכרז ללא שם';
     const record = {
       id,
-      fileName,
+      fileName: fileNames.join(', '),
       tenderName,
       createdAt: new Date().toISOString(),
       data: analysis,

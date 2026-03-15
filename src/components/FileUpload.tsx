@@ -7,8 +7,10 @@ interface FileUploadProps {
   onError: (error: string) => void;
 }
 
+const ALLOWED_EXT = ['pdf', 'doc', 'docx'];
+
 const STEPS = [
-  { text: 'מעלה את הקובץ', detail: 'קורא את המסמך', pct: 10 },
+  { text: 'מעלה קבצים', detail: 'קורא את המסמכים', pct: 10 },
   { text: 'מחלץ טקסט', detail: 'מעבד תוכן', pct: 20 },
   { text: 'שולח ל-AI', detail: 'Claude Opus מתחיל', pct: 30 },
   { text: 'חושב על המסמך', detail: 'מנתח מבנה המכרז', pct: 40 },
@@ -20,10 +22,14 @@ const STEPS = [
   { text: 'כמעט מוכן', detail: 'ממתין לתגובה סופית', pct: 95 },
 ];
 
+function getExt(name: string) {
+  return name.toLowerCase().split('.').pop() || '';
+}
+
 export default function FileUpload({ onAnalysisComplete, onError }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [step, setStep] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -43,23 +49,49 @@ export default function FileUpload({ onAnalysisComplete, onError }: FileUploadPr
     t2.current = setInterval(() => setStep(p => Math.min(p + 1, STEPS.length - 1)), 8000);
   };
 
-  const handleFile = async (file: File) => {
-    const ext = file.name.toLowerCase().split('.').pop();
-    if (!['pdf', 'doc', 'docx'].includes(ext || '')) {
+  const addFiles = (newFiles: FileList | File[]) => {
+    const valid: File[] = [];
+    for (const f of Array.from(newFiles)) {
+      if (ALLOWED_EXT.includes(getExt(f.name))) {
+        // Don't add duplicates
+        if (!files.some(existing => existing.name === f.name && existing.size === f.size)) {
+          valid.push(f);
+        }
+      }
+    }
+    if (valid.length === 0 && newFiles.length > 0) {
       onError('סוג קובץ לא נתמך. העלה PDF או Word');
       return;
     }
-    setFileName(file.name);
+    setFiles(prev => [...prev, ...valid]);
+  };
+
+  const removeFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAnalyze = async () => {
+    if (files.length === 0) return;
     setIsLoading(true);
     start();
     try {
       const fd = new FormData();
-      fd.append('file', file);
+      for (const f of files) {
+        fd.append('files', f);
+      }
       const res = await fetch('/api/analyze', { method: 'POST', body: fd });
       const result = await res.json();
-      result.success ? onAnalysisComplete(result.data) : onError(result.error || 'שגיאה');
-    } catch { onError('שגיאה בתקשורת עם השרת'); }
-    finally { clear(); setIsLoading(false); }
+      if (result.success) {
+        onAnalysisComplete(result.data);
+      } else {
+        onError(result.error || 'שגיאה');
+      }
+    } catch {
+      onError('שגיאה בתקשורת עם השרת');
+    } finally {
+      clear();
+      setIsLoading(false);
+    }
   };
 
   const fmt = (s: number) => {
@@ -70,23 +102,31 @@ export default function FileUpload({ onAnalysisComplete, onError }: FileUploadPr
   const cur = STEPS[step];
 
   return (
-    <div className="w-full">
+    <div className="w-full space-y-3">
+      {/* Drop zone */}
       <div
         onClick={!isLoading ? () => fileInputRef.current?.click() : undefined}
         onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
-        onDrop={e => { e.preventDefault(); setIsDragging(false); const f = e.dataTransfer.files[0]; f && handleFile(f); }}
+        onDrop={e => { e.preventDefault(); setIsDragging(false); addFiles(e.dataTransfer.files); }}
         className={`
           card relative overflow-hidden transition-all duration-300
           ${isLoading ? 'p-8' : 'p-10 cursor-pointer hover:border-teal-300 hover:shadow-md'}
           ${isDragging ? 'border-teal-400 bg-teal-50 shadow-md' : ''}
         `}
       >
-        <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx" onChange={e => { const f = e.target.files?.[0]; f && handleFile(f); }} className="hidden" disabled={isLoading} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.doc,.docx"
+          multiple
+          onChange={e => { if (e.target.files) { addFiles(e.target.files); e.target.value = ''; } }}
+          className="hidden"
+          disabled={isLoading}
+        />
 
         {isLoading ? (
           <div className="flex flex-col items-center gap-5">
-            {/* Progress circle */}
             <div className="relative w-24 h-24">
               <svg className="w-24 h-24 -rotate-90" viewBox="0 0 120 120">
                 <circle cx="60" cy="60" r="52" fill="none" stroke="#E5E7EB" strokeWidth="6" />
@@ -108,12 +148,14 @@ export default function FileUpload({ onAnalysisComplete, onError }: FileUploadPr
               <p className="text-sm text-gray-400 mt-1">{cur.detail}</p>
             </div>
 
-            {fileName && (
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200">
-                <div className="w-1.5 h-1.5 bg-teal-500 rounded-full animate-pulse" />
-                <span className="text-xs text-gray-500">{fileName}</span>
-              </div>
-            )}
+            <div className="flex flex-wrap justify-center gap-2">
+              {files.map((f, i) => (
+                <div key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200">
+                  <div className="w-1.5 h-1.5 bg-teal-500 rounded-full animate-pulse" />
+                  <span className="text-xs text-gray-500">{f.name}</span>
+                </div>
+              ))}
+            </div>
 
             <div className="w-full max-w-xs">
               <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -143,10 +185,11 @@ export default function FileUpload({ onAnalysisComplete, onError }: FileUploadPr
             </div>
 
             <div>
-              <p className="text-lg font-semibold text-gray-800">גרור ושחרר קובץ מכרז</p>
+              <p className="text-lg font-semibold text-gray-800">גרור ושחרר קבצי מכרז</p>
               <p className="text-sm text-gray-400 mt-1.5">
-                או <span className="text-teal-600 font-medium cursor-pointer hover:underline">בחר קובץ</span> מהמחשב
+                או <span className="text-teal-600 font-medium cursor-pointer hover:underline">בחר קבצים</span> מהמחשב
               </p>
+              <p className="text-xs text-gray-300 mt-1">אפשר להעלות מספר קבצים למכרז אחד</p>
             </div>
 
             <div className="flex gap-2">
@@ -156,6 +199,52 @@ export default function FileUpload({ onAnalysisComplete, onError }: FileUploadPr
           </div>
         )}
       </div>
+
+      {/* File list */}
+      {!isLoading && files.length > 0 && (
+        <div className="card p-3 space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-medium text-gray-500">{files.length} קבצים נבחרו</span>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="text-xs text-teal-600 hover:text-teal-800 font-medium"
+            >
+              + הוסף קובץ
+            </button>
+          </div>
+
+          {files.map((f, i) => (
+            <div key={i} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-100">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${
+                  getExt(f.name) === 'pdf'
+                    ? 'text-red-600 bg-red-50'
+                    : 'text-blue-600 bg-blue-50'
+                }`}>
+                  {getExt(f.name).toUpperCase()}
+                </span>
+                <span className="text-sm text-gray-700 truncate">{f.name}</span>
+                <span className="text-xs text-gray-300 flex-shrink-0">{(f.size / 1024).toFixed(0)} KB</span>
+              </div>
+              <button
+                onClick={() => removeFile(i)}
+                className="p-1 text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ))}
+
+          <button
+            onClick={handleAnalyze}
+            className="w-full mt-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-medium text-sm rounded-lg transition-colors"
+          >
+            נתח {files.length > 1 ? `${files.length} קבצים` : 'מכרז'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
