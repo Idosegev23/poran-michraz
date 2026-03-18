@@ -3,7 +3,7 @@ import { parseDocument } from '@/lib/parseDocument';
 import { analyzeTender } from '@/lib/claudeAnalyzer';
 import { put } from '@vercel/blob';
 
-export const maxDuration = 300;
+export const maxDuration = 600;
 
 export async function POST(request: NextRequest) {
   const requestId = Math.random().toString(36).substring(2, 8);
