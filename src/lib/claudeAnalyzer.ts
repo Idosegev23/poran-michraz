@@ -77,23 +77,24 @@ const DAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמיש
 
 /** Verify and fix day-of-week in date strings using Israel timezone */
 function fixDatesInIsraelTimezone(data: TenderAnalysis): TenderAnalysis {
-  const dateRegex = /יום\s+(ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)\s+(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})/g;
+  const DATE_PATTERN = /יום\s+(ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)\s+(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})/g;
+
+  const formatter = new Intl.DateTimeFormat('he-IL', {
+    weekday: 'long',
+    timeZone: 'Asia/Jerusalem',
+  });
 
   function fixDateString(value: string): string {
-    return value.replace(dateRegex, (match, dayName, dd, mm, yyyy) => {
-      let year = parseInt(yyyy, 10);
-      if (year < 100) year += 2000;
-      const month = parseInt(mm, 10);
-      const day = parseInt(dd, 10);
-
-      // Build date string and compute day-of-week in Israel timezone
-      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T12:00:00`;
-      const formatter = new Intl.DateTimeFormat('he-IL', {
-        weekday: 'long',
-        timeZone: 'Asia/Jerusalem',
-      });
-
+    // Create a fresh regex each time to avoid lastIndex issues
+    const regex = new RegExp(DATE_PATTERN.source, 'g');
+    return value.replace(regex, (match, dayName, dd, mm, yyyy) => {
       try {
+        let year = parseInt(yyyy, 10);
+        if (year < 100) year += 2000;
+        const month = parseInt(mm, 10);
+        const day = parseInt(dd, 10);
+
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T12:00:00`;
         const date = new Date(dateStr);
         if (isNaN(date.getTime())) return match;
 
@@ -112,28 +113,33 @@ function fixDatesInIsraelTimezone(data: TenderAnalysis): TenderAnalysis {
     });
   }
 
-  const fixed = { ...data };
+  try {
+    const fixed = { ...data };
 
-  // Fix relevantDates
-  if (fixed.relevantDates) {
-    const dates = { ...fixed.relevantDates };
-    for (const [key, val] of Object.entries(dates)) {
-      if (typeof val === 'string') {
-        (dates as Record<string, string>)[key] = fixDateString(val);
+    // Fix relevantDates
+    if (fixed.relevantDates) {
+      const dates = { ...fixed.relevantDates };
+      for (const [key, val] of Object.entries(dates)) {
+        if (typeof val === 'string') {
+          (dates as Record<string, string>)[key] = fixDateString(val);
+        }
+      }
+      fixed.relevantDates = dates as typeof fixed.relevantDates;
+    }
+
+    // Fix any top-level string field that might contain dates
+    for (const [key, val] of Object.entries(fixed)) {
+      if (key !== 'relevantDates' && typeof val === 'string') {
+        (fixed as Record<string, unknown>)[key] = fixDateString(val);
       }
     }
-    fixed.relevantDates = dates as typeof fixed.relevantDates;
-  }
 
-  // Fix any top-level string field that might contain dates
-  for (const [key, val] of Object.entries(fixed)) {
-    if (typeof val === 'string' && dateRegex.test(val)) {
-      dateRegex.lastIndex = 0;
-      (fixed as Record<string, unknown>)[key] = fixDateString(val);
-    }
+    return fixed;
+  } catch {
+    // If date fixing fails for any reason, return original data
+    console.warn('Date fix failed, returning original data');
+    return data;
   }
-
-  return fixed;
 }
 
 export async function analyzeTender(documentText: string): Promise<TenderAnalysis> {
@@ -190,17 +196,19 @@ export async function analyzeTender(documentText: string): Promise<TenderAnalysi
   try {
     const parsed = JSON.parse(jsonStr) as TenderAnalysis;
     return fixDatesInIsraelTimezone(parsed);
-  } catch {
+  } catch (e1) {
     // Try to find JSON in the response
     const braceMatch = responseText.match(/\{[\s\S]*\}/);
     if (braceMatch) {
       try {
         const parsed = JSON.parse(braceMatch[0]) as TenderAnalysis;
         return fixDatesInIsraelTimezone(parsed);
-      } catch {
+      } catch (e2) {
+        console.error('JSON parse attempt 2 failed:', e2, 'Response start:', braceMatch[0].substring(0, 200));
         throw new Error('שגיאה בעיבוד תשובת ה-AI. נסה שוב.');
       }
     }
+    console.error('No JSON found in response. Response start:', responseText.substring(0, 300));
     throw new Error('שגיאה בעיבוד תשובת ה-AI. נסה שוב.');
   }
 }
