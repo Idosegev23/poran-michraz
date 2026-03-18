@@ -60,7 +60,7 @@ const USER_PROMPT = `נתח את מסמך המכרז הבא בצורה המעמ�
   "definitions": "כל ההגדרות מסעיף ההגדרות במכרז. כל הגדרה בשורה נפרדת בפורמט: מונח: הגדרה מלאה. חלץ את כל המונחים מסעיף ההגדרות ללא דילוג - לדוגמה:\\nסיום התכנון: השלמת כל שלבי התכנון כולל אישור הגורם המוסמך\\nיום עבודה: יום שאינו שבת, חג או שבתון\\nהמזמין: עיריית תל אביב-יפו",
   "submissionFormat": "פורמט ההגשה - מספר כרכים, מגבלת עמודים לכל כרך, שפה, מספר עותקים, פורמט דיגיטלי",
   "penalties": "קנסות - פירוט כל קנס, סכום/אחוז, תנאי הפעלה, תקרת קנסות",
-  "redFlags": "כל דגל אדום בשורה נפרדת, בפורמט:\\n[כספי] תיאור הסיכון הכספי\\n[משפטי] תיאור הסיכון המשפטי\\n[טכני] תיאור הסיכון הטכני\\n[לוח זמנים] תיאור סיכון בלוח זמנים\\n[כ\"א] תיאור סיכון כ\"א\\n[אחר] תיאור נוסף\\nכל שורה = דגל אדום אחד עם קטגוריה בסוגריים מרובעים",
+  "redFlags": "כל דגל אדום בשורה נפרדת, בפורמט:\\n[כספי] תיאור הסיכון הכספי\\n[משפטי] תיאור הסיכון המשפטי\\n[טכני] תיאור הסיכון הטכני\\n[לוח זמנים] תיאור סיכון בלוח זמנים\\n[כ\\"א] תיאור סיכון כ\\"א\\n[אחר] תיאור נוסף\\nכל שורה = דגל אדום אחד עם קטגוריה בסוגריים מרובעים",
   "riskScore": "ציון סיכון כולל מ-1 עד 10 (מספר בלבד, לדוגמה: 7)",
   "executiveSummary": "GO - / NO-GO - סיכום מנהלים קצר: המלצה, נימוקים, סיכונים מרכזיים, יתרונות",
   "submissionChecklist": "[ ] פריט ראשון\\n[ ] פריט שני\\n[ ] פריט שלישי\\n... (כל מה שנדרש להגשה)"
@@ -85,7 +85,6 @@ function fixDatesInIsraelTimezone(data: TenderAnalysis): TenderAnalysis {
   });
 
   function fixDateString(value: string): string {
-    // Create a fresh regex each time to avoid lastIndex issues
     const regex = new RegExp(DATE_PATTERN.source, 'g');
     return value.replace(regex, (match, dayName, dd, mm, yyyy) => {
       try {
@@ -98,16 +97,17 @@ function fixDatesInIsraelTimezone(data: TenderAnalysis): TenderAnalysis {
         const date = new Date(dateStr);
         if (isNaN(date.getTime())) return match;
 
-        const correctDayLong = formatter.format(date); // e.g. "יום שלישי"
+        const correctDayLong = formatter.format(date);
         const correctDay = correctDayLong.replace('יום ', '');
         const correctDayClean = DAY_NAMES.find(d => correctDay.includes(d));
 
         if (correctDayClean && correctDayClean !== dayName) {
+          console.log(`[DATE-FIX] Corrected: "${dayName}" → "${correctDayClean}" for date ${dd}/${mm}/${yyyy}`);
           const fixed = match.replace(`יום ${dayName}`, `יום ${correctDayClean}`);
           return `${fixed} (תוקן: במקור צוין יום ${dayName})`;
         }
-      } catch {
-        // If date parsing fails, leave as-is
+      } catch (err) {
+        console.warn(`[DATE-FIX] Failed to parse date in: "${match}"`, err);
       }
       return match;
     });
@@ -116,7 +116,6 @@ function fixDatesInIsraelTimezone(data: TenderAnalysis): TenderAnalysis {
   try {
     const fixed = { ...data };
 
-    // Fix relevantDates
     if (fixed.relevantDates) {
       const dates = { ...fixed.relevantDates };
       for (const [key, val] of Object.entries(dates)) {
@@ -127,7 +126,6 @@ function fixDatesInIsraelTimezone(data: TenderAnalysis): TenderAnalysis {
       fixed.relevantDates = dates as typeof fixed.relevantDates;
     }
 
-    // Fix any top-level string field that might contain dates
     for (const [key, val] of Object.entries(fixed)) {
       if (key !== 'relevantDates' && typeof val === 'string') {
         (fixed as Record<string, unknown>)[key] = fixDateString(val);
@@ -135,9 +133,8 @@ function fixDatesInIsraelTimezone(data: TenderAnalysis): TenderAnalysis {
     }
 
     return fixed;
-  } catch {
-    // If date fixing fails for any reason, return original data
-    console.warn('Date fix failed, returning original data');
+  } catch (err) {
+    console.error('[DATE-FIX] Top-level date fix failed, returning original data:', err);
     return data;
   }
 }
@@ -153,29 +150,53 @@ export async function analyzeTender(documentText: string): Promise<TenderAnalysi
   const maxChars = 180000;
   let textToAnalyze = documentText;
   if (documentText.length > maxChars) {
+    console.warn(`[ANALYZE] Document truncated: ${documentText.length} → ${maxChars} chars`);
     textToAnalyze = documentText.substring(0, maxChars);
   }
 
+  console.log(`[ANALYZE] Starting analysis. Document length: ${textToAnalyze.length} chars`);
+
   const prompt = USER_PROMPT.replace('{DOCUMENT_TEXT}', textToAnalyze);
 
-  // Use Claude Opus 4.6 with extended thinking via streaming (required for long ops)
-  const stream = await client.messages.stream({
-    model: 'claude-opus-4-20250514',
-    max_tokens: 16000,
-    thinking: {
-      type: 'enabled',
-      budget_tokens: 10000,
-    },
-    messages: [
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-    system: SYSTEM_PROMPT,
-  });
+  console.log(`[ANALYZE] Calling Claude API (model: claude-opus-4-20250514, max_tokens: 16000, thinking: 10000)...`);
+  const startTime = Date.now();
 
-  const message = await stream.finalMessage();
+  let message;
+  try {
+    const stream = await client.messages.stream({
+      model: 'claude-opus-4-20250514',
+      max_tokens: 16000,
+      thinking: {
+        type: 'enabled',
+        budget_tokens: 10000,
+      },
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      system: SYSTEM_PROMPT,
+    });
+
+    message = await stream.finalMessage();
+  } catch (apiError) {
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.error(`[ANALYZE] Claude API call FAILED after ${elapsed}s:`, apiError);
+    if (apiError instanceof Error) {
+      console.error(`[ANALYZE] Error name: ${apiError.name}, message: ${apiError.message}`);
+      if ('status' in apiError) console.error(`[ANALYZE] HTTP status: ${(apiError as { status: number }).status}`);
+      if ('error' in apiError) console.error(`[ANALYZE] API error body:`, JSON.stringify((apiError as { error: unknown }).error));
+    }
+    throw new Error(`שגיאת API של Claude: ${apiError instanceof Error ? apiError.message : 'שגיאה לא צפויה'}`);
+  }
+
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.log(`[ANALYZE] Claude API responded in ${elapsed}s. Stop reason: ${message.stop_reason}. Usage: input=${message.usage.input_tokens}, output=${message.usage.output_tokens}`);
+
+  // Log content block types
+  const blockTypes = message.content.map(b => b.type).join(', ');
+  console.log(`[ANALYZE] Response blocks: [${blockTypes}]`);
 
   // Extract text from response (skip thinking blocks)
   const responseText = message.content
@@ -186,29 +207,86 @@ export async function analyzeTender(documentText: string): Promise<TenderAnalysi
     })
     .join('');
 
+  console.log(`[ANALYZE] Extracted text length: ${responseText.length} chars`);
+
+  if (!responseText || responseText.trim().length === 0) {
+    console.error(`[ANALYZE] Empty response text! Full content blocks:`, JSON.stringify(message.content.map(b => ({ type: b.type, length: b.type === 'text' ? b.text.length : 'N/A' }))));
+    throw new Error('תשובת ה-AI ריקה. ייתכן שהמסמך ארוך מדי או שיש בעיה זמנית. נסה שוב.');
+  }
+
+  // Log first 500 chars to help debug JSON issues
+  console.log(`[ANALYZE] Response preview: ${responseText.substring(0, 500)}`);
+
   // Extract JSON from response (handle markdown code blocks)
   let jsonStr = responseText;
   const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (jsonMatch) {
+    console.log(`[ANALYZE] Found JSON in markdown code block (length: ${jsonMatch[1].trim().length})`);
     jsonStr = jsonMatch[1].trim();
+  } else {
+    console.log(`[ANALYZE] No markdown code block found, using raw response`);
   }
 
+  // Attempt 1: parse as-is
   try {
     const parsed = JSON.parse(jsonStr) as TenderAnalysis;
-    return fixDatesInIsraelTimezone(parsed);
+    const fieldCount = Object.keys(parsed).length;
+    console.log(`[ANALYZE] JSON parse SUCCESS (attempt 1). Fields: ${fieldCount}`);
+    const result = fixDatesInIsraelTimezone(parsed);
+    console.log(`[ANALYZE] Date fix complete. Analysis done.`);
+    return result;
   } catch (e1) {
-    // Try to find JSON in the response
-    const braceMatch = responseText.match(/\{[\s\S]*\}/);
-    if (braceMatch) {
-      try {
-        const parsed = JSON.parse(braceMatch[0]) as TenderAnalysis;
-        return fixDatesInIsraelTimezone(parsed);
-      } catch (e2) {
-        console.error('JSON parse attempt 2 failed:', e2, 'Response start:', braceMatch[0].substring(0, 200));
-        throw new Error('שגיאה בעיבוד תשובת ה-AI. נסה שוב.');
-      }
-    }
-    console.error('No JSON found in response. Response start:', responseText.substring(0, 300));
-    throw new Error('שגיאה בעיבוד תשובת ה-AI. נסה שוב.');
+    console.warn(`[ANALYZE] JSON parse FAILED (attempt 1):`, e1 instanceof Error ? e1.message : e1);
+    console.warn(`[ANALYZE] jsonStr preview (first 300 chars): ${jsonStr.substring(0, 300)}`);
+    console.warn(`[ANALYZE] jsonStr preview (last 300 chars): ${jsonStr.substring(jsonStr.length - 300)}`);
   }
+
+  // Attempt 2: extract { ... } from response
+  const braceMatch = responseText.match(/\{[\s\S]*\}/);
+  if (braceMatch) {
+    console.log(`[ANALYZE] Found brace-delimited JSON (length: ${braceMatch[0].length})`);
+    try {
+      const parsed = JSON.parse(braceMatch[0]) as TenderAnalysis;
+      const fieldCount = Object.keys(parsed).length;
+      console.log(`[ANALYZE] JSON parse SUCCESS (attempt 2). Fields: ${fieldCount}`);
+      const result = fixDatesInIsraelTimezone(parsed);
+      console.log(`[ANALYZE] Date fix complete. Analysis done.`);
+      return result;
+    } catch (e2) {
+      console.error(`[ANALYZE] JSON parse FAILED (attempt 2):`, e2 instanceof Error ? e2.message : e2);
+      console.error(`[ANALYZE] Brace match preview (first 300): ${braceMatch[0].substring(0, 300)}`);
+      console.error(`[ANALYZE] Brace match preview (last 300): ${braceMatch[0].substring(braceMatch[0].length - 300)}`);
+    }
+  } else {
+    console.error(`[ANALYZE] No JSON object found in response at all!`);
+    console.error(`[ANALYZE] Full response (first 1000 chars): ${responseText.substring(0, 1000)}`);
+  }
+
+  // Attempt 3: try to fix common JSON issues (trailing commas, unescaped newlines)
+  try {
+    console.log(`[ANALYZE] Attempting JSON repair...`);
+    let repaired = (braceMatch?.[0] || jsonStr)
+      .replace(/,\s*}/g, '}')           // trailing comma before }
+      .replace(/,\s*]/g, ']')           // trailing comma before ]
+      .replace(/[\x00-\x1f]/g, (ch: string) => {  // control chars
+        if (ch === '\n') return '\\n';
+        if (ch === '\r') return '\\r';
+        if (ch === '\t') return '\\t';
+        return '';
+      });
+    // Re-extract JSON object after repair
+    const repairedMatch = repaired.match(/\{[\s\S]*\}/);
+    if (repairedMatch) repaired = repairedMatch[0];
+    const parsed = JSON.parse(repaired) as TenderAnalysis;
+    const fieldCount = Object.keys(parsed).length;
+    console.log(`[ANALYZE] JSON repair SUCCESS. Fields: ${fieldCount}`);
+    const result = fixDatesInIsraelTimezone(parsed);
+    console.log(`[ANALYZE] Date fix complete. Analysis done.`);
+    return result;
+  } catch (e3) {
+    console.error(`[ANALYZE] JSON repair also FAILED:`, e3 instanceof Error ? e3.message : e3);
+  }
+
+  console.error(`[ANALYZE] ALL parsing attempts failed. Giving up.`);
+  throw new Error('שגיאה בעיבוד תשובת ה-AI. נסה שוב.');
 }
