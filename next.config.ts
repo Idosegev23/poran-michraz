@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['puppeteer-core', '@sparticuz/chromium', 'pdf-lib'],
+  serverExternalPackages: ['puppeteer-core', '@sparticuz/chromium', 'pdf-lib', 'nodemailer'],
   // Webpack externals for Puppeteer/Chromium (used with next build --webpack)
   webpack: (config, { isServer }) => {
     if (isServer) {
