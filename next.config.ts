@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
       config.externals.push({
         'puppeteer-core': 'commonjs puppeteer-core',
         '@sparticuz/chromium': 'commonjs @sparticuz/chromium',
+        'nodemailer': 'commonjs nodemailer',
       });
     }
     return config;
