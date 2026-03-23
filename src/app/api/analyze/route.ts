@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parseDocument } from '@/lib/parseDocument';
 import { analyzeTender } from '@/lib/claudeAnalyzer';
 import { put } from '@vercel/blob';
+import { sendErrorAlert } from '@/lib/alertEmail';
 
 export const maxDuration = 600;
 
@@ -121,6 +122,15 @@ export async function POST(request: NextRequest) {
       console.error(`[API:${requestId}] Stack: ${error.stack}`);
     }
     const message = error instanceof Error ? error.message : 'שגיאה לא צפויה בעיבוד המסמך';
+
+    // Send alert email (non-blocking)
+    sendErrorAlert({
+      route: 'POST /api/analyze',
+      errorMessage: message,
+      errorStack: error instanceof Error ? error.stack : undefined,
+      details: { requestId },
+    }).catch(() => {});
+
     return NextResponse.json(
       { success: false, error: message },
       { status: 500 }
