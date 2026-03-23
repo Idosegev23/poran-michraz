@@ -200,7 +200,7 @@ function ExecutiveSummary({ summary }: { summary: string }) {
           <span className={`${badgeBg} text-white text-xs font-bold px-2.5 py-1 rounded-md flex items-center gap-1`}>
             <span>{icon}</span> {verdict}
           </span>
-          <span className="font-semibold text-sm text-gray-800">סיכום מנהלים – המלצה</span>
+          <span className="font-semibold text-sm text-gray-800">המלצת המערכת</span>
         </div>
         <p className={`text-sm leading-relaxed whitespace-pre-wrap ${textColor}`}>{cleaned}</p>
       </div>

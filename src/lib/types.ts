@@ -20,6 +20,7 @@ export interface TenderAnalysis {
   requiredTeamForSubmission: string;
   requiredTeamAfterSubmission: string;
   consultantsDirectContract: string;
+  employerEmployeeRelationship: string;
   bidderEligibility: string;
   functionEligibility: string;
   compensationStructure: string;
@@ -60,6 +61,7 @@ export const FIELD_LABELS: Record<string, string> = {
   requiredTeamForSubmission: 'צוות נדרש לצורך הגשת ההצעה כולל היקפי משרה',
   requiredTeamAfterSubmission: 'צוות נדרש לאחר הגשת ההצעה בפירוט מספר הימים',
   consultantsDirectContract: 'האם היועצים הנוספים נדרשים להיות בחוזה ישיר מול המציע',
+  employerEmployeeRelationship: 'יחסי עובד-מעביד – האם נדרשים לאנשי הצוות',
   bidderEligibility: 'תנאי סף מציע',
   functionEligibility: 'תנאי סף – לגבי כל פונקציה בנפרד',
   compensationStructure: 'תמורה – מבנה התמורה (אחוזים / שעות / פאושלי)',
@@ -74,7 +76,7 @@ export const FIELD_LABELS: Record<string, string> = {
   penalties: 'קנסות',
   redFlags: 'דגל אדום (בחלוקה לפי נושאים)',
   riskScore: 'ציון סיכון כולל (1-10)',
-  executiveSummary: 'סיכום מנהלים – המלצת Go/No-Go',
+  executiveSummary: 'המלצת המערכת – Go/No-Go',
   submissionChecklist: 'רשימת תיוג להגשה',
 };
 
