@@ -1,6 +1,8 @@
-import nodemailer from 'nodemailer';
+/* eslint-disable @typescript-eslint/no-require-imports */
 
 function getTransporter() {
+  // Dynamic require to avoid TypeScript/webpack resolution issues on Vercel
+  const nodemailer = require('nodemailer');
   return nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -22,7 +24,7 @@ export async function sendErrorAlert(ctx: ErrorContext): Promise<void> {
   const pass = process.env.GMAIL_APP_PASSWORD;
   const to = process.env.ALERT_EMAIL;
 
-  if (!user || !pass || !to) return; // silently skip if not configured
+  if (!user || !pass || !to) return;
 
   const timestamp = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' });
 
@@ -35,7 +37,7 @@ export async function sendErrorAlert(ctx: ErrorContext): Promise<void> {
   const html = `
 <div style="font-family:sans-serif;max-width:700px;margin:0 auto">
   <div style="background:#EF4444;color:white;padding:16px 20px;border-radius:8px 8px 0 0">
-    <h2 style="margin:0;font-size:18px">🚨 שגיאה במערכת ניתוח מכרזים</h2>
+    <h2 style="margin:0;font-size:18px">שגיאה במערכת ניתוח מכרזים</h2>
     <p style="margin:4px 0 0;opacity:0.85;font-size:13px">${timestamp} | ${ctx.route}</p>
   </div>
   <div style="background:#FFF;border:1px solid #E5E7EB;border-top:none;padding:20px;border-radius:0 0 8px 8px">
@@ -62,7 +64,7 @@ export async function sendErrorAlert(ctx: ErrorContext): Promise<void> {
     await getTransporter().sendMail({
       from: `"מערכת מכרזים" <${user}>`,
       to,
-      subject: `🚨 שגיאה: ${ctx.route} – ${ctx.errorMessage.substring(0, 60)}`,
+      subject: `שגיאה: ${ctx.route} – ${ctx.errorMessage.substring(0, 60)}`,
       html,
     });
   } catch {

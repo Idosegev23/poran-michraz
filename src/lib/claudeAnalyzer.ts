@@ -264,19 +264,73 @@ export async function analyzeTender(documentText: string): Promise<TenderAnalysi
     console.error(`[ANALYZE] Full response (first 1000 chars): ${responseText.substring(0, 1000)}`);
   }
 
-  // Attempt 3: try to fix common JSON issues (trailing commas, unescaped newlines)
+  // Attempt 3: robust JSON repair
   try {
     console.log(`[ANALYZE] Attempting JSON repair...`);
-    let repaired = (braceMatch?.[0] || jsonStr)
-      .replace(/,\s*}/g, '}')           // trailing comma before }
-      .replace(/,\s*]/g, ']')           // trailing comma before ]
-      .replace(/[\x00-\x1f]/g, (ch: string) => {  // control chars
-        if (ch === '\n') return '\\n';
-        if (ch === '\r') return '\\r';
-        if (ch === '\t') return '\\t';
-        return '';
-      });
-    // Re-extract JSON object after repair
+    const raw = braceMatch?.[0] || jsonStr;
+
+    // Strategy: rebuild JSON string-by-string to properly escape inner quotes
+    let repaired = '';
+    let inString = false;
+    let escaped = false;
+
+    for (let i = 0; i < raw.length; i++) {
+      const ch = raw[i];
+
+      if (escaped) {
+        repaired += ch;
+        escaped = false;
+        continue;
+      }
+
+      if (ch === '\\') {
+        repaired += ch;
+        escaped = true;
+        continue;
+      }
+
+      if (ch === '"') {
+        if (!inString) {
+          inString = true;
+          repaired += ch;
+        } else {
+          // Check if this quote ends the string value:
+          // Look ahead — skip whitespace, expect , or } or ] or : or end
+          const rest = raw.substring(i + 1).trimStart();
+          const nextChar = rest[0];
+          if (!nextChar || nextChar === ',' || nextChar === '}' || nextChar === ']' || nextChar === ':') {
+            // This is a real closing quote
+            inString = false;
+            repaired += ch;
+          } else {
+            // This is an unescaped quote inside a string — escape it
+            repaired += '\\"';
+          }
+        }
+        continue;
+      }
+
+      // Handle raw newlines inside strings
+      if (inString && (ch === '\n' || ch === '\r')) {
+        repaired += '\\n';
+        continue;
+      }
+
+      // Handle control characters
+      if (inString && ch.charCodeAt(0) < 32 && ch !== '\t') {
+        continue; // strip other control chars
+      }
+      if (inString && ch === '\t') {
+        repaired += '\\t';
+        continue;
+      }
+
+      repaired += ch;
+    }
+
+    // Also fix trailing commas
+    repaired = repaired.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
+
     const repairedMatch = repaired.match(/\{[\s\S]*\}/);
     if (repairedMatch) repaired = repairedMatch[0];
     const parsed = JSON.parse(repaired) as TenderAnalysis;
