@@ -233,7 +233,6 @@ export async function analyzeTender(documentText: string): Promise<TenderAnalysi
     const stream = await client.messages.stream({
       model: MODEL,
       max_tokens: MAX_TOKENS,
-      temperature: 0,
       messages: [
         {
           role: 'user',
