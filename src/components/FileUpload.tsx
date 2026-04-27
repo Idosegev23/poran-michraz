@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { upload } from '@vercel/blob/client';
 
 interface FileUploadProps {
   onAnalysisComplete: (data: unknown) => void;
@@ -10,7 +11,7 @@ interface FileUploadProps {
 const ALLOWED_EXT = ['pdf', 'doc', 'docx'];
 
 const STEPS = [
-  { text: 'מעלה קבצים', detail: 'קורא את המסמכים', pct: 10 },
+  { text: 'מעלה קבצים', detail: 'מעלה לאחסון מאובטח', pct: 5 },
   { text: 'מחלץ טקסט', detail: 'מעבד תוכן', pct: 20 },
   { text: 'שולח ל-AI', detail: 'Claude Opus מתחיל', pct: 30 },
   { text: 'חושב על המסמך', detail: 'מנתח מבנה המכרז', pct: 40 },
@@ -75,16 +76,71 @@ export default function FileUpload({ onAnalysisComplete, onError }: FileUploadPr
     setIsLoading(true);
     start();
     try {
-      const fd = new FormData();
+      // Step 1: Upload each file directly to Vercel Blob (bypasses 4.5MB API limit)
+      const uploads: { url: string; name: string; size: number }[] = [];
       for (const f of files) {
-        fd.append('files', f);
+        const blob = await upload(f.name, f, {
+          access: 'public',
+          handleUploadUrl: '/api/upload-token',
+          contentType: f.type || undefined,
+        });
+        uploads.push({ url: blob.url, name: f.name, size: f.size });
       }
-      const res = await fetch('/api/analyze', { method: 'POST', body: fd });
-      const result = await res.json();
-      if (result.success) {
-        onAnalysisComplete(result.data);
-      } else {
-        onError(result.error || 'שגיאה');
+
+      // Step 2: Send only URLs to analyze endpoint
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uploads }),
+      });
+
+      if (!res.ok || !res.body) {
+        onError('שגיאה בתקשורת עם השרת');
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let gotResult = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE events from buffer
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // keep incomplete line in buffer
+
+        let eventType = '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            eventType = line.slice(7).trim();
+          } else if (line.startsWith('data: ') && eventType) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (eventType === 'result' && data.success) {
+                onAnalysisComplete(data.data);
+                gotResult = true;
+              } else if (eventType === 'error') {
+                onError(data.error || 'שגיאה');
+                gotResult = true;
+              }
+              // heartbeat and progress events are ignored (connection stays alive)
+            } catch {
+              // ignore parse errors for individual events
+            }
+            eventType = '';
+          } else if (line === '') {
+            eventType = '';
+          }
+        }
+      }
+
+      if (!gotResult) {
+        onError('לא התקבלה תשובה מהשרת');
       }
     } catch {
       onError('שגיאה בתקשורת עם השרת');
