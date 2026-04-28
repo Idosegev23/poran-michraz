@@ -222,7 +222,10 @@ export async function analyzeTender(documentText: string): Promise<TenderAnalysi
 
   const client = new Anthropic({ apiKey });
 
-  const maxChars = 180000;
+  // Opus 4.7 supports 1M token context window
+  // Hebrew text ≈ 1.5-2 chars/token with new tokenizer → ~600-800k chars fits comfortably
+  // Reserve room for system prompt (~3k tokens), output (32k), and safety margin
+  const maxChars = 800000;
   let textToAnalyze = documentText;
   if (documentText.length > maxChars) {
     console.warn(`[ANALYZE] Document truncated: ${documentText.length} → ${maxChars} chars`);
