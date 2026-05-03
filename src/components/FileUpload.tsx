@@ -104,37 +104,48 @@ export default function FileUpload({ onAnalysisComplete, onError }: FileUploadPr
       let buffer = '';
       let gotResult = false;
 
+      const handleEvent = (eventType: string, dataStr: string) => {
+        try {
+          const data = JSON.parse(dataStr);
+          if (eventType === 'result' && data.success) {
+            onAnalysisComplete(data.data);
+            gotResult = true;
+          } else if (eventType === 'error') {
+            onError(data.error || 'שגיאה');
+            gotResult = true;
+          }
+          // heartbeat and progress events are ignored (connection stays alive)
+        } catch {
+          // ignore parse errors
+        }
+      };
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
 
-        // Parse SSE events from buffer
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // keep incomplete line in buffer
+        // SSE events are separated by \n\n. Accumulate until we have one or more
+        // complete events, then process them. Anything after the last \n\n
+        // stays in `buffer` for the next iteration.
+        let sepIdx;
+        while ((sepIdx = buffer.indexOf('\n\n')) !== -1) {
+          const rawEvent = buffer.slice(0, sepIdx);
+          buffer = buffer.slice(sepIdx + 2);
 
-        let eventType = '';
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            eventType = line.slice(7).trim();
-          } else if (line.startsWith('data: ') && eventType) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (eventType === 'result' && data.success) {
-                onAnalysisComplete(data.data);
-                gotResult = true;
-              } else if (eventType === 'error') {
-                onError(data.error || 'שגיאה');
-                gotResult = true;
-              }
-              // heartbeat and progress events are ignored (connection stays alive)
-            } catch {
-              // ignore parse errors for individual events
+          let eventType = '';
+          let dataStr = '';
+          for (const line of rawEvent.split('\n')) {
+            if (line.startsWith('event: ')) {
+              eventType = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              dataStr += (dataStr ? '\n' : '') + line.slice(6);
             }
-            eventType = '';
-          } else if (line === '') {
-            eventType = '';
+          }
+
+          if (eventType && dataStr) {
+            handleEvent(eventType, dataStr);
           }
         }
       }
