@@ -45,7 +45,14 @@ const SYSTEM_PROMPT = `אתה מומחה בכיר לניתוח מכרזים, מ�
 
 **רשימת תיוג**: כל פריט בשורה: "[ ] תיאור". כלול הכל: מסמכים, ערבויות, צוות, אישורים.
 
-**הגדרות**: כל מונח בשורה: "מונח: הגדרה מלאה". חלץ את כולם.
+**הגדרות - חובה להוציא את כל המונחים ללא יוצא מן הכלל**:
+זהו אחד השדות הקריטיים ביותר. אסור לדלג על אף הגדרה.
+1. אתר את סעיף ההגדרות (לרוב סעיף 1, או "הגדרות", או "פרשנות") בכל אחד מהמסמכים שצורפו - גם בנספחים והודעות הבהרה.
+2. עבור **שורה אחר שורה** על כל המונחים שמוגדרים בסעיף, מהראשון עד האחרון.
+3. כלול גם מונחים שמוגדרים בתוך טקסט רץ ("X משמעו...", "X פירושו...", "כהגדרתו ב...").
+4. כתוב כל מונח בשורה נפרדת בפורמט: "מונח: הגדרה מלאה". העתק את ההגדרה מילה במילה.
+5. אם יש 30 מונחים - החזר 30. אם 50 - החזר 50. **לעולם אל תקצר ואל תסכם את הרשימה.**
+6. דוגמאות למונחים נפוצים שאסור לפספס: "תכנון כוללני", "סיום תכנון", "יום עבודה", "המזמין", "הזוכה", "המנהל", "אבן דרך", "פרויקט", "התחייבות", "בעל תפקיד", "צוות", "המפקח", "המנהלת".
 
 **פורמט**: כל ערך = מחרוזת (string). לא objects, לא arrays. JSON תקין בלבד.
 
@@ -209,6 +216,14 @@ function validateCriticalFields(data: TenderAnalysis): string[] {
     }
   } else {
     warnings.push(`[VALIDATE] MISSING entire relevantDates object!`);
+  }
+
+  // Definitions: warn if suspiciously low. Most tenders have 10+ definitions.
+  if (typeof data.definitions === 'string' && data.definitions.trim()) {
+    const defLines = data.definitions.split('\n').filter(l => l.trim() && l.includes(':'));
+    if (defLines.length < 8) {
+      warnings.push(`[VALIDATE] LOW definitions count: only ${defLines.length} found. Most tenders have 10+ definitions — Claude may have skipped some.`);
+    }
   }
 
   return warnings;
