@@ -23,14 +23,17 @@ export async function POST(request: NextRequest) {
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       };
 
-      // Heartbeat to keep connection alive
+      // Send initial padding + comment to flush headers immediately through any proxy buffers
+      controller.enqueue(encoder.encode(': stream-open\n\n'));
+
+      // Heartbeat to keep connection alive (every 3s — aggressive to defeat proxy idle timeouts)
       const heartbeat = setInterval(() => {
         try {
           send('heartbeat', { time: Date.now() });
         } catch {
           // stream already closed
         }
-      }, 10000); // every 10 seconds
+      }, 3000);
 
       // Track Blob URLs we should clean up after processing
       const blobUrlsToCleanup: string[] = [];
@@ -182,8 +185,11 @@ export async function POST(request: NextRequest) {
           console.warn(`[API:${requestId}] History save failed:`, err);
         });
 
-        console.log(`[API:${requestId}] === Request complete (success) ===`);
         send('result', { success: true, data: analysis });
+        // Brief pause so the network actually flushes the (large) result payload
+        // before the controller closes — protects against tail-data being dropped.
+        await new Promise(r => setTimeout(r, 200));
+        console.log(`[API:${requestId}] === Request complete (success) ===`);
       } catch (error) {
         console.error(`[API:${requestId}] === Request FAILED ===`);
         console.error(`[API:${requestId}] Error:`, error);
@@ -219,9 +225,11 @@ export async function POST(request: NextRequest) {
 
   return new Response(stream, {
     headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
+      // Disable any intermediate proxy buffering so events flush immediately
+      'X-Accel-Buffering': 'no',
     },
   });
 }
