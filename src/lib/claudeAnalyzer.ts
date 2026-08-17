@@ -237,9 +237,9 @@ export async function analyzeTender(documentText: string): Promise<TenderAnalysi
 
   const client = new Anthropic({ apiKey });
 
-  // Opus 4.7 supports 1M token context window
-  // Hebrew text ≈ 1.5-2 chars/token with new tokenizer → ~600-800k chars fits comfortably
-  // Reserve room for system prompt (~3k tokens), output (32k), and safety margin
+  // Opus 5 supports 1M token context window (same tokenizer as Opus 4.7/4.8)
+  // Hebrew text ≈ 1.5-2 chars/token → ~600-800k chars fits comfortably
+  // Reserve room for system prompt (~3k tokens), output (64k), and safety margin
   const maxChars = 800000;
   let textToAnalyze = documentText;
   if (documentText.length > maxChars) {
@@ -251,16 +251,24 @@ export async function analyzeTender(documentText: string): Promise<TenderAnalysi
 
   const prompt = USER_PROMPT.replace('{DOCUMENT_TEXT}', textToAnalyze);
 
-  const MODEL = 'claude-opus-4-7';
-  const MAX_TOKENS = 32000;
+  const MODEL = 'claude-opus-5';
+  // Opus 5: thinking is ON by default and counts toward max_tokens — keep headroom
+  // (previously 32K on Opus 4.7, where omitting `thinking` meant no thinking)
+  const MAX_TOKENS = 64000;
   console.log(`[ANALYZE] Calling Claude API (model: ${MODEL}, max_tokens: ${MAX_TOKENS})...`);
   const startTime = Date.now();
 
   let message;
   try {
-    const stream = await client.messages.stream({
+    // Beta endpoint: server-side fallback — if Opus 5's safety classifiers decline
+    // a request (possible with defense-related tender documents), it automatically
+    // re-runs on Anthropic's recommended fallback model instead of failing.
+    // `fallbacks` may not be typed in the installed SDK version yet, hence the cast.
+    const stream = client.beta.messages.stream({
       model: MODEL,
       max_tokens: MAX_TOKENS,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
       messages: [
         {
           role: 'user',
@@ -268,7 +276,7 @@ export async function analyzeTender(documentText: string): Promise<TenderAnalysi
         },
       ],
       system: SYSTEM_PROMPT,
-    });
+    } as Parameters<typeof client.beta.messages.stream>[0]);
 
     message = await stream.finalMessage();
   } catch (apiError) {
@@ -284,6 +292,13 @@ export async function analyzeTender(documentText: string): Promise<TenderAnalysi
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log(`[ANALYZE] Claude API responded in ${elapsed}s. Stop reason: ${message.stop_reason}. Usage: input=${message.usage.input_tokens}, output=${message.usage.output_tokens}`);
+
+  // Opus 5 safety classifiers can decline a request (HTTP 200, stop_reason "refusal",
+  // empty/partial content) — even after the server-side fallback chain. Check before parsing.
+  if (message.stop_reason === 'refusal') {
+    console.error(`[ANALYZE] Request declined by safety classifiers. stop_details:`, JSON.stringify((message as { stop_details?: unknown }).stop_details ?? null));
+    throw new Error('ניתוח המסמך נדחה על ידי מסנני הבטיחות של המודל. ייתכן שהמסמך מכיל תוכן ביטחוני רגיש. נסה להסיר נספחים רגישים ולנתח שוב.');
+  }
 
   // Log content block types
   const blockTypes = message.content.map(b => b.type).join(', ');
