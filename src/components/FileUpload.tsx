@@ -75,6 +75,34 @@ export default function FileUpload({ onAnalysisComplete, onError }: FileUploadPr
     if (files.length === 0) return;
     setIsLoading(true);
     start();
+
+    // Recovery: the server announces the analysis id in a 'start' event and keeps
+    // running even if the SSE connection dies (proxy kill / timeout). If the stream
+    // ends without a result, poll the history endpoint until the analysis appears.
+    let analysisId: string | null = null;
+    const analysisStartedAt = Date.now();
+
+    const pollForResult = async (id: string): Promise<boolean> => {
+      // Server maxDuration is 800s — poll until ~14 minutes after the analysis began
+      const deadline = analysisStartedAt + 14 * 60 * 1000;
+      while (Date.now() < deadline) {
+        try {
+          const res = await fetch(`/api/history/${id}`, { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && !data.error && data.tenderName !== undefined) {
+              onAnalysisComplete(data);
+              return true;
+            }
+          }
+        } catch {
+          // network hiccup — keep polling
+        }
+        await new Promise(r => setTimeout(r, 10000));
+      }
+      return false;
+    };
+
     try {
       // Step 1: Upload each file directly to Vercel Blob (bypasses 4.5MB API limit)
       const uploads: { url: string; name: string; size: number }[] = [];
@@ -107,7 +135,9 @@ export default function FileUpload({ onAnalysisComplete, onError }: FileUploadPr
       const handleEvent = (eventType: string, dataStr: string) => {
         try {
           const data = JSON.parse(dataStr);
-          if (eventType === 'result' && data.success) {
+          if (eventType === 'start' && data.id) {
+            analysisId = data.id;
+          } else if (eventType === 'result' && data.success) {
             onAnalysisComplete(data.data);
             gotResult = true;
           } else if (eventType === 'error') {
@@ -151,10 +181,14 @@ export default function FileUpload({ onAnalysisComplete, onError }: FileUploadPr
       }
 
       if (!gotResult) {
-        onError('לא התקבלה תשובה מהשרת');
+        // Stream ended without a result — try to recover from history before failing
+        const recovered = analysisId ? await pollForResult(analysisId) : false;
+        if (!recovered) onError('לא התקבלה תשובה מהשרת');
       }
     } catch {
-      onError('שגיאה בתקשורת עם השרת');
+      // Connection died mid-stream — the server may still finish; try to recover
+      const recovered = analysisId ? await pollForResult(analysisId) : false;
+      if (!recovered) onError('שגיאה בתקשורת עם השרת');
     } finally {
       clear();
       setIsLoading(false);

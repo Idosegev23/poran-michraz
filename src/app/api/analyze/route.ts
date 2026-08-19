@@ -4,7 +4,9 @@ import { analyzeTender } from '@/lib/claudeAnalyzer';
 import { put, del } from '@vercel/blob';
 import { sendErrorAlert } from '@/lib/alertEmail';
 
-export const maxDuration = 600;
+// 800s = Vercel Pro (Fluid) maximum. Opus 5 thinks by default, so long documents
+// can exceed the previous 600s ceiling — the 11/08 run took 419s on Opus 4.7.
+export const maxDuration = 800;
 
 interface BlobUploadInput {
   uploads: { url: string; name: string; size?: number }[];
@@ -25,6 +27,12 @@ export async function POST(request: NextRequest) {
 
       // Send initial padding + comment to flush headers immediately through any proxy buffers
       controller.enqueue(encoder.encode(': stream-open\n\n'));
+
+      // Announce the analysis id up front. If the stream later dies (proxy kill,
+      // timeout), the client polls /api/history/{id} to recover the result —
+      // the function keeps running server-side even after a client disconnect.
+      const analysisId = crypto.randomUUID().slice(0, 8);
+      send('start', { id: analysisId });
 
       // Heartbeat to keep connection alive (every 3s — aggressive to defeat proxy idle timeouts)
       const heartbeat = setInterval(() => {
@@ -163,27 +171,28 @@ export async function POST(request: NextRequest) {
         const analyzeTime = ((Date.now() - analyzeStart) / 1000).toFixed(1);
         console.log(`[API:${requestId}] Analysis complete in ${analyzeTime}s. Fields: ${Object.keys(analysis).length}`);
 
-        // Save to history (non-blocking)
-        const id = crypto.randomUUID().slice(0, 8);
+        // Save to history BEFORE sending the result, so a client that lost the
+        // stream can recover the analysis by polling /api/history/{analysisId}.
         const tenderName = typeof analysis.tenderName === 'string'
           ? analysis.tenderName.substring(0, 100)
           : 'מכרז ללא שם';
         const record = {
-          id,
+          id: analysisId,
           fileName: fileNames.join(', '),
           tenderName,
           createdAt: new Date().toISOString(),
           data: analysis,
         };
-        console.log(`[API:${requestId}] Saving to history: ${id}`);
-        put(`history/${id}.json`, JSON.stringify(record), {
-          access: 'public',
-          contentType: 'application/json',
-        }).then(() => {
-          console.log(`[API:${requestId}] History saved: ${id}`);
-        }).catch((err) => {
+        console.log(`[API:${requestId}] Saving to history: ${analysisId}`);
+        try {
+          await put(`history/${analysisId}.json`, JSON.stringify(record), {
+            access: 'public',
+            contentType: 'application/json',
+          });
+          console.log(`[API:${requestId}] History saved: ${analysisId}`);
+        } catch (err) {
           console.warn(`[API:${requestId}] History save failed:`, err);
-        });
+        }
 
         send('result', { success: true, data: analysis });
         // Brief pause so the network actually flushes the (large) result payload
