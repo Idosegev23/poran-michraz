@@ -258,36 +258,62 @@ export async function analyzeTender(documentText: string): Promise<TenderAnalysi
   console.log(`[ANALYZE] Calling Claude API (model: ${MODEL}, max_tokens: ${MAX_TOKENS})...`);
   const startTime = Date.now();
 
-  let message;
-  try {
-    // Beta endpoint: server-side fallback — if Opus 5's safety classifiers decline
-    // a request (possible with defense-related tender documents), it automatically
-    // re-runs on Anthropic's recommended fallback model instead of failing.
-    // `fallbacks` may not be typed in the installed SDK version yet, hence the cast.
-    const stream = client.beta.messages.stream({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      system: SYSTEM_PROMPT,
-    } as Parameters<typeof client.beta.messages.stream>[0]);
+  // The SDK auto-retries errors that happen at request time, but NOT a 500/529
+  // that lands mid-stream (e.g. the 19/08 "Degraded performance for Claude Opus 5"
+  // incident). Retry those at the app level — only while there's enough time left
+  // inside the route's 800s budget for a fresh attempt.
+  const MAX_ATTEMPTS = 3;
+  const RETRY_CUTOFF_MS = 5 * 60 * 1000; // don't start a retry more than 5 min in
 
-    message = await stream.finalMessage();
-  } catch (apiError) {
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.error(`[ANALYZE] Claude API call FAILED after ${elapsed}s:`, apiError);
-    if (apiError instanceof Error) {
-      console.error(`[ANALYZE] Error name: ${apiError.name}, message: ${apiError.message}`);
-      if ('status' in apiError) console.error(`[ANALYZE] HTTP status: ${(apiError as { status: number }).status}`);
-      if ('error' in apiError) console.error(`[ANALYZE] API error body:`, JSON.stringify((apiError as { error: unknown }).error));
+  let message;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      // Beta endpoint: server-side fallback — if Opus 5's safety classifiers decline
+      // a request (possible with defense-related tender documents), it automatically
+      // re-runs on Anthropic's recommended fallback model instead of failing.
+      // `fallbacks` may not be typed in the installed SDK version yet, hence the cast.
+      const stream = client.beta.messages.stream({
+        model: MODEL,
+        max_tokens: MAX_TOKENS,
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        system: SYSTEM_PROMPT,
+      } as Parameters<typeof client.beta.messages.stream>[0]);
+
+      message = await stream.finalMessage();
+      break;
+    } catch (apiError) {
+      const elapsedMs = Date.now() - startTime;
+      const status = (apiError as { status?: number }).status;
+      console.error(`[ANALYZE] Claude API attempt ${attempt} FAILED after ${(elapsedMs / 1000).toFixed(1)}s (status=${status ?? 'network'}):`, apiError);
+      if (apiError instanceof Error) {
+        console.error(`[ANALYZE] Error name: ${apiError.name}, message: ${apiError.message}`);
+        if ('error' in apiError) console.error(`[ANALYZE] API error body:`, JSON.stringify((apiError as { error: unknown }).error));
+      }
+
+      // 5xx/529 and connection drops (no status) are transient — retry with backoff
+      const retryable = status === undefined || status >= 500;
+      if (retryable && attempt < MAX_ATTEMPTS && elapsedMs < RETRY_CUTOFF_MS) {
+        const delayMs = attempt * 10_000;
+        console.warn(`[ANALYZE] Transient error — retrying in ${delayMs / 1000}s (attempt ${attempt + 1}/${MAX_ATTEMPTS})...`);
+        await new Promise(r => setTimeout(r, delayMs));
+        continue;
+      }
+
+      if (status !== undefined && status >= 500) {
+        throw new Error('שרתי ה-AI של Anthropic חווים עומס או תקלה זמנית. נסה שוב בעוד מספר דקות.');
+      }
+      if (status === 429) {
+        throw new Error('חריגה זמנית ממכסת הבקשות מול ה-AI. המתן כדקה ונסה שוב.');
+      }
+      throw new Error(`שגיאת API של Claude: ${apiError instanceof Error ? apiError.message : 'שגיאה לא צפויה'}`);
     }
-    throw new Error(`שגיאת API של Claude: ${apiError instanceof Error ? apiError.message : 'שגיאה לא צפויה'}`);
   }
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
